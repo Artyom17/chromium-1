@@ -649,6 +649,9 @@ class MODULES_EXPORT WebGLRenderingContextBase : public CanvasRenderingContext,
 
   void UpdateNumberOfUserAllocatedMultisampledRenderbuffers(int delta);
 
+  unsigned max_texture_size() const {
+    return unsigned(max_texture_size_);
+  }
  protected:
   // WebGL object types.
   friend class WebGLContextObject;

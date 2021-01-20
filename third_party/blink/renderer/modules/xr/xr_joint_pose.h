@@ -12,17 +12,23 @@
 
 namespace blink {
 
+class XRSession;
+
 class XRJointPose : public XRPose {
   DEFINE_WRAPPERTYPEINFO();
 
  public:
-  XRJointPose(const TransformationMatrix& transform,
+  XRJointPose(XRSession*,
+              const TransformationMatrix& transform,
               bool emulatedPosition,
               float radius);
 
   float radius() const { return radius_; }
 
+  void Trace(blink::Visitor*) const override;
+
  private:
+  Member<XRSession> session_;
   float radius_;
 };
 

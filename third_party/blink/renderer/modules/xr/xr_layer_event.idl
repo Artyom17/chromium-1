@@ -1,0 +1,11 @@
+// (c) Facebook, Inc. and its affiliates. Confidential and proprietary.
+
+
+[
+    SecureContext,
+    Exposed=Window,
+    RuntimeEnabled=WebXRLayers
+] interface XRLayerEvent : Event {
+  constructor(DOMString type, XRLayerEventInit eventInitDict);
+  [SameObject] readonly attribute XRLayer layer;
+};

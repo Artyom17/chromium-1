@@ -21,6 +21,7 @@ class XRFrameTransport;
 class XRSession;
 class XRSystem;
 class XRWebGLLayer;
+class XRLayer;
 
 // This class manages requesting and dispatching frame updates, which includes
 // pose information for a given XRDevice.
@@ -68,6 +69,18 @@ class XRFrameProvider final : public GarbageCollected<XRFrameProvider> {
 
   virtual void Trace(Visitor*) const;
 
+  XRFrameTransport* frameTransport() const { return frame_transport_; }  // !AB
+  device::mojom::blink::XRPresentationProvider* presentationProvider()
+      const {  // !AB
+    return immersive_presentation_provider_.get();
+  }
+  int16_t frame_id() const { return frame_id_; }  // !AB
+
+  void SendLayersInfoToCompositor(
+      WTF::Vector<::device::mojom::blink::XRLayerPtr>&& mojo_layers);  // !AB
+  void AddLayerToSubmission(const XRLayer* layer_interface);
+  void AddLayerToPoseUpdate(const XRLayer* layer_interface);
+  void SubmitLayers();  // !AB
  private:
   void OnImmersiveFrameData(device::mojom::blink::XRFrameDataPtr data);
   void OnNonImmersiveFrameData(XRSession* session,
@@ -146,6 +159,9 @@ class XRFrameProvider final : public GarbageCollected<XRFrameProvider> {
   base::Optional<gpu::MailboxHolder> buffer_mailbox_holder_;
   base::Optional<gpu::MailboxHolder> camera_image_mailbox_holder_;
   bool last_has_focus_ = false;
+
+  // This contains pointers to all GL contexts used by layers in layers_to_submit_.
+  //std::unordered_set<gpu::gles2::GLES2Interface*> submission_contexts_;
 };
 
 }  // namespace blink

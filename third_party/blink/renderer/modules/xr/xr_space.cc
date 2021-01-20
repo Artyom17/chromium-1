@@ -1,3 +1,4 @@
+// Copyright (c) Facebook, Inc. and its affiliates.
 // Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
@@ -10,6 +11,7 @@
 #include "third_party/blink/renderer/modules/xr/xr_pose.h"
 #include "third_party/blink/renderer/modules/xr/xr_rigid_transform.h"
 #include "third_party/blink/renderer/modules/xr/xr_session.h"
+#include "third_party/blink/renderer/modules/xr/xr_utils.h"
 
 namespace blink {
 
@@ -67,15 +69,48 @@ bool XRSpace::EmulatedPosition() const {
   return session()->EmulatedPosition();
 }
 
+bool XRSpace::TryFillPoseMatrix(XRSpace* other_space, TransformationMatrix::FloatMatrix4& out_matrix) {
+  DVLOG(2) << __func__;
+
+  base::Optional<TransformationMatrix> other_offset_from_offset =
+      GetPoseTransformationMatrix(other_space);
+
+  if (other_offset_from_offset) {
+      other_offset_from_offset.value().ToColumnMajorFloatArray(out_matrix);
+      return true;
+  }
+
+  return false;
+}
+
 XRPose* XRSpace::getPose(XRSpace* other_space) {
   DVLOG(2) << __func__;
 
+  base::Optional<TransformationMatrix> other_offset_from_offset =
+      GetPoseTransformationMatrix(other_space);
+
+  if (!other_offset_from_offset) {
+    return nullptr;
+  }
+
+  // TODO(crbug.com/969133): Update how EmulatedPosition is determined here once
+  // spec issue https://github.com/immersive-web/webxr/issues/534 has been
+  // resolved.
+  bool isEmulatedPosition =
+      EmulatedPosition() || other_space->EmulatedPosition();
+
+  return MakeGarbageCollected<XRPose>(other_offset_from_offset.value(),
+                                      isEmulatedPosition);
+}
+
+base::Optional<TransformationMatrix> XRSpace::GetPoseTransformationMatrix(
+    XRSpace* other_space) {
   // Named mojo_from_offset because that is what we will leave it as, though it
   // starts mojo_from_native.
   base::Optional<TransformationMatrix> mojo_from_offset = MojoFromNative();
   if (!mojo_from_offset) {
     DVLOG(2) << __func__ << ": MojoFromNative() is not set";
-    return nullptr;
+    return base::nullopt;
   }
 
   // Add any origin offset now.
@@ -85,21 +120,14 @@ XRPose* XRSpace::getPose(XRSpace* other_space) {
       other_space->NativeFromMojo();
   if (!other_from_mojo) {
     DVLOG(2) << __func__ << ": other_space->NativeFromMojo() is not set";
-    return nullptr;
+    return base::nullopt;
   }
 
   // Add any origin offset from the other space now.
   TransformationMatrix other_offset_from_mojo =
       other_space->OffsetFromNativeMatrix().Multiply(*other_from_mojo);
 
-  // TODO(crbug.com/969133): Update how EmulatedPosition is determined here once
-  // spec issue https://github.com/immersive-web/webxr/issues/534 has been
-  // resolved.
-  TransformationMatrix other_offset_from_offset =
-      other_offset_from_mojo.Multiply(*mojo_from_offset);
-  return MakeGarbageCollected<XRPose>(
-      other_offset_from_offset,
-      EmulatedPosition() || other_space->EmulatedPosition());
+  return other_offset_from_mojo.Multiply(*mojo_from_offset);
 }
 
 base::Optional<TransformationMatrix> XRSpace::OffsetFromViewer() {

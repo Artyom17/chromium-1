@@ -1,0 +1,8 @@
+// (c) Facebook, Inc. and its affiliates. Confidential and proprietary.
+
+dictionary XRMediaCylinderLayerInit : XRMediaLayerInit {
+  XRRigidTransform? transform;
+  float radius = 2.0;
+  float centralAngle = 0.78539;
+  float? aspectRatio;
+};

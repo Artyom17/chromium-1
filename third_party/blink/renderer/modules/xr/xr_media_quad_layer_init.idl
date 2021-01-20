@@ -1,0 +1,7 @@
+// (c) Facebook, Inc. and its affiliates. Confidential and proprietary.
+
+dictionary XRMediaQuadLayerInit : XRMediaLayerInit {
+  XRRigidTransform? transform;
+  float? width;
+  float? height;
+};

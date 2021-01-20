@@ -1,0 +1,12 @@
+// (c) Facebook, Inc. and its affiliates. Confidential and proprietary.
+
+[
+    SecureContext,
+    Exposed=Window,
+    RuntimeEnabled=WebXRLayers
+]
+interface XRCubeLayer : XRCompositionLayer {
+  [RaisesException] attribute XRSpace space;
+
+  attribute DOMPointReadOnly orientation;
+};

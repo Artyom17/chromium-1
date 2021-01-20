@@ -1,0 +1,12 @@
+// (c) Facebook, Inc. and its affiliates. Confidential and proprietary.
+
+dictionary XRLayerInit {
+  required XRSpace space;
+  required unsigned long viewPixelWidth;
+  required unsigned long viewPixelHeight;
+  XRLayerLayout layout = "mono";
+  boolean depth = false;
+  boolean stencil = false;
+  boolean alpha = true;
+  boolean isStatic = false;
+};

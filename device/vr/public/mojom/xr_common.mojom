@@ -1,0 +1,11 @@
+module device.mojom;
+
+import "ui/gfx/geometry/mojom/geometry.mojom";
+
+////////////////////////////////
+// An entity's pose. Used by entities for which both position and orientation is
+// always known (e.g. anchors, planes).
+struct Pose {
+  gfx.mojom.Quaternion orientation;
+  gfx.mojom.Point3F position;
+};

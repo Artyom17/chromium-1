@@ -14,12 +14,14 @@
 namespace blink {
 
 class XRSession;
+class XRInputSource;
 
 class XRJointSpace : public XRSpace {
   DEFINE_WRAPPERTYPEINFO();
 
  public:
   XRJointSpace(XRSession* session,
+               XRInputSource*,
                std::unique_ptr<TransformationMatrix> mojo_from_joint,
                String joint_name,
                float radius);
@@ -40,6 +42,7 @@ class XRJointSpace : public XRSpace {
   void Trace(Visitor*) const override;
 
  private:
+  Member<XRInputSource> input_source_;
   const std::unique_ptr<TransformationMatrix> mojo_from_joint_space_;
   const String joint_name_;
   const float radius_;

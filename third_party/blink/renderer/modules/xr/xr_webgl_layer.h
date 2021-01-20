@@ -46,6 +46,14 @@ class XRWebGLLayer final : public XRLayer {
                               const XRWebGLLayerInit*,
                               ExceptionState&);
 
+  bool IsXRWebGLLayer() const override { return true; }
+  XRWebGLLayer* GetAsXRWebGLLayer() override { return this; }
+  bool IsXRLayer() const override { return false; }
+  XRCompositionLayer* GetAsXRLayer() override { return nullptr; }
+
+  void getXRWebGLRenderingContext(
+      XRWebGLRenderingContext&) const;
+
   WebGLRenderingContextBase* context() const { return webgl_context_; }
 
   WebGLFramebuffer* framebuffer() const { return framebuffer_; }
@@ -81,6 +89,18 @@ class XRWebGLLayer final : public XRLayer {
 
   void Trace(Visitor*) const override;
 
+  // XRLayer implementation
+  bool CanDiscardDepthStencil() const override { return ignoreDepthValues(); }
+  ::device::mojom::blink::XRLayerPtr GetLayerMojoObject() const override;
+  ::device::mojom::blink::XRLayerUpdateInfoPtr GetLayerUpdateInfo()
+      const override;
+  void SetLayerIndex(unsigned index) override { index_ = index; }
+  unsigned GetLayerIndex() const override { return index_; }
+  device::Pose GetDevicePose() const override { return device::Pose(); }
+  bool NeedUpdatePose() const override { return false; }
+  void MarkContentInvalidated() override {}
+  bool needsRedraw() const override { return true; }
+  // !AB end
  private:
   uint32_t GetBufferTextureId(
       const base::Optional<gpu::MailboxHolder>& buffer_mailbox_holder);
@@ -104,6 +124,8 @@ class XRWebGLLayer final : public XRLayer {
 
   uint32_t camera_image_texture_id_;
   base::Optional<gpu::MailboxHolder> camera_image_mailbox_holder_;
+
+  unsigned index_ = ~0u;
 };
 
 }  // namespace blink

@@ -1,0 +1,172 @@
+module device.mojom;
+
+import "gpu/ipc/common/sync_token.mojom";
+import "ui/gfx/mojom/gpu_fence_handle.mojom";
+import "ui/gfx/geometry/mojom/geometry.mojom";
+
+import "device/vr/public/mojom/xr_common.mojom";
+
+////////////////////////////////
+
+struct XRFoveationData {
+  enum Type {
+    NONE = 0,
+    QCOM_SCALED_BIN,
+  };
+  Type type;
+
+  /* If type == QCOM_SCALED_BIN then floatParams represent the following struct:
+  struct QCOMScaledBin {
+    float focalX;
+    float focalY;
+    float gainX;
+    float gainY;
+    float foveaArea;
+  } */
+  array<float,5>? leftEyeFloatParams;
+  array<float,5>? rightEyeFloatParams;
+  float minPixelDensity;
+};
+
+struct XRSwapChainCreationInfo {
+  uint32 width;
+  uint32 height;
+  uint32 array_size; // if > 1, then texture array is requested
+  uint32 foveation_level;
+  bool alpha;
+  bool cube;
+  bool is_static;
+};
+
+////////////////////////////////////
+struct XRSwapChainTextureImportInfo {
+  handle? fd;
+  int64 memoryAllocationSize;
+  uint32 mipCount;           
+};
+
+// This struct is returned from the Browser to Blink proc by 'CreateImageSource'
+struct XRSwapChainInfo {
+  uint32 image_source_handle;
+  uint32 width;              
+  uint32 height;             
+  uint32 arraySize;
+  uint32 glTextureTarget;
+  uint32 glFormat;           
+  array<XRSwapChainTextureImportInfo> swap_chain_textures;
+  // Foveation data is optional, only if supported.
+  XRFoveationData? foveation_data;
+};
+
+//////////////////////////////////////////
+enum XRLayerEyeVisibility {
+  BOTH,
+  LEFT,
+  RIGHT,
+
+  SIDE_BY_SIDE_STEREO 
+};
+
+struct XRLayerHeaderInfo {
+  array<uint32>        image_source_handles;
+  XRLayerEyeVisibility eye_visibility;
+  bool                 chromatic_aberration_correction;
+  bool                 blend_texture_source_alpha;
+};
+
+struct XRBaseLayerInfo {
+  gfx.mojom.RectF left_bounds;
+  gfx.mojom.RectF right_bounds;
+};
+
+struct XRQuadLayerInfo {
+  Pose pose; // pose in device (mojo) space
+
+  gfx.mojom.RectF left_rect;
+  gfx.mojom.RectF right_rect;
+
+  float width_in_meters;
+  float height_in_meters;
+};
+
+struct XREquirectLayerInfo {
+  Pose pose; // pose in device (mojo) space
+
+  gfx.mojom.RectF left_rect;
+  gfx.mojom.RectF right_rect;
+
+  // Scale of the texture coordinates after the mapping to 2D.
+  gfx.mojom.PointF scale;
+
+  // Bias of the texture coordinates after the mapping to 2D.
+  gfx.mojom.PointF bias;
+
+  // The non-negative radius of the sphere onto which the equirect image data is mapped. 
+  // Values of zero or floating point positive infinity are treated as an infinite sphere.
+  float radius;
+};
+
+struct XRCylinderLayerInfo {
+  Pose pose; // pose in device (mojo) space
+
+  gfx.mojom.RectF left_rect;
+  gfx.mojom.RectF right_rect;
+
+  // radius of the cylinder. Values of zero or floating point positive infinity are treated as an infinite cylinder.
+  float radius;
+
+  // angle of the visible section of the cylinder, based at 0 radians, in the range of [0, 2π). 
+  // It grows symmetrically around the 0 radian angle.
+  float central_angle;
+
+  // ratio of the visible cylinder section width / height.
+  // The height of the cylinder is given by: (cylinder radius × cylinder angle) / aspectRatio.
+  float aspect_ratio;
+};
+
+struct XRCubeLayerInfo {
+  Pose? pose; // orientation (position is ignored) in device (mojo) space
+
+  gfx.mojom.RectF left_rect;
+  gfx.mojom.RectF right_rect;
+};
+
+union XRLayerUnion {
+  XRBaseLayerInfo     base;
+  XRQuadLayerInfo     quad;
+  XRCylinderLayerInfo cylinder;
+  XREquirectLayerInfo equirect;
+  XRCubeLayerInfo     cube;
+};
+
+struct XRLayer {
+  XRLayerHeaderInfo header;
+  XRLayerUnion      data;
+};
+
+//////////////////////////////////////////
+struct XRLayerTransportGpuFenceHandle {
+  // gpu fence is used for shared swap chain
+  gfx.mojom.GpuFenceHandle gpu_fence_handle;
+};
+
+// The data structure used for transferring layers to device-specific swapchain (Blink -> Browser).
+union XRLayerTransport {
+  // gpu fence is used for shared swap chain
+  XRLayerTransportGpuFenceHandle gpu_fence_transport;
+};
+
+struct XRLayerUpdateInfo {
+  uint32            layer_index;
+  // If swap_chain_index provided (not negative) then it takes precedence over internal Advance.
+  int32             swap_chain_index = -1;
+  // per swapchain transports; some transports allow a single instance
+  // for both swapchains (in the case when a-swapchain-per-eye is used).
+  array<XRLayerTransport> transports;
+
+  // Optional pose update
+  Pose?             pose;
+};
+
+
+

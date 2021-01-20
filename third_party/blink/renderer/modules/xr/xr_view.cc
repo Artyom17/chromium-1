@@ -1,3 +1,4 @@
+// Copyright (c) Facebook, Inc. and its affiliates.
 // Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
@@ -165,6 +166,7 @@ void XRView::requestViewportScale(base::Optional<double> scale) {
 }
 
 void XRView::Trace(Visitor* visitor) const {
+  // !AB: visitor->Trace(session_);
   visitor->Trace(frame_);
   visitor->Trace(projection_matrix_);
   visitor->Trace(ref_space_from_eye_);

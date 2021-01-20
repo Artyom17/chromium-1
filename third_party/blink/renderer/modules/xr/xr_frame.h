@@ -29,6 +29,7 @@ class XRInputSource;
 class XRJointPose;
 class XRLightEstimate;
 class XRLightProbe;
+class XRJointPose;
 class XRJointSpace;
 class XRPlaneSet;
 class XRPose;
@@ -60,11 +61,15 @@ class XRFrame final : public ScriptWrappable {
 
   void Trace(Visitor*) const override;
 
+  void Activate();
   void Deactivate();
 
   bool IsActive() const;
 
   bool IsAnimationFrame() const { return is_animation_frame_; }
+  void SetAnimationFrame(bool is_animation_frame) {
+    is_animation_frame_ = is_animation_frame;
+  }
 
   HeapVector<Member<XRHitTestResult>> getHitTestResults(
       XRHitTestSource* hit_test_source,
@@ -94,10 +99,16 @@ class XRFrame final : public ScriptWrappable {
                  NotShared<DOMFloat32Array> transforms,
                  ExceptionState& exception_state);
 
+  XRSession* session() { return session_; }
  private:
   std::unique_ptr<TransformationMatrix> GetAdjustedPoseMatrix(XRSpace*) const;
   XRPose* GetTargetRayPose(XRInputSource*, XRSpace*) const;
   XRPose* GetGripPose(XRInputSource*, XRSpace*) const;
+  bool CheckValidState(ExceptionState& exception_state) const;
+  bool CheckCanReportPoses(ExceptionState& exception_state) const;
+  bool CheckIsAnimationFrame(ExceptionState& exception_state) const;
+  bool CheckMatchingSession(XRSession* session, ExceptionState& exception_state) const;
+  bool CheckValidPoseSessions(XRSpace* space, XRSpace* basespace, ExceptionState& exception_state) const;
 
   // Helper that creates an anchor with the assumption that the conversion from
   // passed in space to a stationary space is required.
@@ -114,7 +125,7 @@ class XRFrame final : public ScriptWrappable {
 
   // Frames are only active during callbacks. getPose and getViewerPose should
   // only be called from JS on active frames.
-  bool is_active_ = true;
+  bool is_active_ = false;
 
   // Only frames created by XRSession.requestAnimationFrame callbacks are
   // animation frames. getViewerPose should only be called from JS on active

@@ -30,6 +30,7 @@
 #include "third_party/blink/renderer/platform/wtf/text/string_view.h"
 
 #include "third_party/blink/renderer/bindings/core/v8/active_script_wrappable.h"
+#include "third_party/blink/renderer/modules/xr/xr_webgl_resource_manager.h"
 
 namespace blink {
 
@@ -45,6 +46,7 @@ class XRCanvasInputProvider;
 class XRDepthInformation;
 class XRDepthManager;
 class XRDOMOverlayState;
+class XRCompositionLayer;
 class XRHitTestOptionsInit;
 class XRHitTestSource;
 class XRImageTrackingResult;
@@ -60,6 +62,7 @@ class XRSystem;
 class XRTransientInputHitTestOptionsInit;
 class XRTransientInputHitTestSource;
 class XRViewData;
+class XRWebGLBinding;
 class XRWebGLLayer;
 
 using XRSessionFeatureSet = HashSet<device::mojom::XRSessionFeature>;
@@ -130,6 +133,8 @@ class XRSession final
   // other runtimes support reflection mapping, so just return this until we
   // have a need to differentiate based on the underlying runtime.
   const String preferredReflectionFormat() const { return "rgba16f"; }
+
+  XRFrame* animationFrame() const { return animation_frame_; }
 
   XRSpace* viewerSpace() const;
 
@@ -233,7 +238,7 @@ class XRSession final
 
   // Describes the recommended dimensions of layer framebuffers. Should be a
   // value that provides a good balance between quality and performance.
-  DoubleSize DefaultFramebufferSize() const;
+  DoubleSize DefaultFramebufferSize(bool multiview) const;
 
   // Reports the size of the output canvas, if one is available. If not
   // reports (0, 0);
@@ -374,6 +379,20 @@ class XRSession final
   HeapVector<Member<XRImageTrackingResult>> ImageTrackingResults(
       ExceptionState&);
 
+  void NotifyLayersChanged();
+  void UpdateLayersInfoIfNeeded();
+
+  void AddXRLayer(XRCompositionLayer*);
+  void AddLayerToSubmission(const class XRLayer* layer_interface);
+
+  XRWebGLResourceManager* GetWebGLResourceManager() const {
+    return resource_manager_;
+  }
+  int16_t frame_id() const;
+  device::mojom::blink::XRPresentationProvider* presentationProvider() const;
+
+  XRWebGLBinding* getOrCreateMediaLayerManager(ExceptionState& exception_state);
+
  private:
   class XRSessionResizeObserverDelegate;
 
@@ -383,6 +402,7 @@ class XRSession final
   void ApplyPendingRenderState();
 
   void MaybeRequestFrame();
+  bool MaybeRequestFrameWithReason(String* reason_string);  // !AB
 
   void OnInputStateChangeInternal(
       int16_t frame_id,
@@ -458,6 +478,11 @@ class XRSession final
   XRVisibilityState device_visibility_state_ = XRVisibilityState::VISIBLE;
   XRVisibilityState visibility_state_ = XRVisibilityState::VISIBLE;
   String visibility_state_string_;
+  // !Oculus: Animation frame created based on current state of the session.
+  // State currently used in XRFrame creation is mojo_from_viewer_ and
+  // world_information_. The created XRFrame also stores a reference to this
+  // XRSession.
+  Member<XRFrame> animation_frame_;
   Member<XRRenderState> render_state_;
 
   Member<XRLightProbe> world_light_probe_;
@@ -543,6 +568,9 @@ class XRSession final
 
   Member<XRInputSourceArray> input_sources_;
   Member<XRWebGLLayer> prev_base_layer_;
+  HeapVector<Member<XRLayer>> prev_layers_;
+  HeapHashSet<Member<XRCompositionLayer>> started_xr_layers_;
+  bool use_layers_ = false;
   Member<ResizeObserver> resize_observer_;
   Member<XRCanvasInputProvider> canvas_input_provider_;
   Member<Element> overlay_element_;
@@ -605,6 +633,11 @@ class XRSession final
   int16_t last_frame_id_ = -1;
 
   bool emulated_position_ = false;
+
+  Member<XRWebGLResourceManager> resource_manager_;
+  bool need_update_layers_info_ = false;           
+
+  Member<XRWebGLBinding> media_layer_manager_;
 };
 
 }  // namespace blink

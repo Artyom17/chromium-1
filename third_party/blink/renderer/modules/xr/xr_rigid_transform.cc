@@ -21,6 +21,12 @@ XRRigidTransform::XRRigidTransform(
   DecomposeMatrix();
 }
 
+// !AB
+XRRigidTransform::XRRigidTransform() {
+  orientation_ = DOMPointReadOnly::Create(0.0, 0.0, 0.0, 1.0);
+  position_ = DOMPointReadOnly::Create(0.0, 0.0, 0.0, 0.0);
+}
+
 void XRRigidTransform::DecomposeMatrix() {
   // decompose matrix to position and orientation
   TransformationMatrix::DecomposedType decomposed;
@@ -31,36 +37,29 @@ void XRRigidTransform::DecomposeMatrix() {
       DOMPointReadOnly::Create(decomposed.translate_x, decomposed.translate_y,
                                decomposed.translate_z, 1.0);
 
+  // TODO(https://crbug.com/929841): Minuses are needed as a workaround for
+  // bug in TransformationMatrix so that callers can still pass non-inverted
+  // quaternions.
   orientation_ = makeNormalizedQuaternion(
       decomposed.quaternion_x, decomposed.quaternion_y, decomposed.quaternion_z,
       decomposed.quaternion_w);
 }
 
-XRRigidTransform::XRRigidTransform(DOMPointInit* position,
-                                   DOMPointInit* orientation) {
-  if (position) {
-    position_ = DOMPointReadOnly::Create(position->x(), position->y(),
-                                         position->z(), 1.0);
-  } else {
-    position_ = DOMPointReadOnly::Create(0.0, 0.0, 0.0, 1.0);
-  }
-
-  if (orientation) {
-    orientation_ = makeNormalizedQuaternion(orientation->x(), orientation->y(),
-                                            orientation->z(), orientation->w());
-  } else {
-    orientation_ = DOMPointReadOnly::Create(0.0, 0.0, 0.0, 1.0);
-  }
-
-  // Computing transformation matrix from position and orientation is expensive,
-  // so compute it lazily in matrix().
-}
+// !AB: moved to a header file
+// XRRigidTransform::XRRigidTransform(DOMPointInit* position,
+//                                   DOMPointInit* orientation)
 
 XRRigidTransform* XRRigidTransform::Create(DOMPointInit* position,
                                            DOMPointInit* orientation,
                                            ExceptionState& exception_state) {
   if (position && position->w() != 1.0) {
     exception_state.ThrowTypeError("W component of position must be 1.0");
+    return nullptr;
+  }
+  // !AB
+  if (position && (!finite(position->x()) || !finite(position->y()) ||
+                   !finite(position->z()))) {
+    exception_state.ThrowTypeError("Invalid position");
     return nullptr;
   }
 
@@ -71,9 +70,16 @@ XRRigidTransform* XRRigidTransform::Create(DOMPointInit* position,
     double w = orientation->w();
     double sq_len = x * x + y * y + z * z + w * w;
 
+    // !AB
+    if (!finite(x) || !finite(y) || !finite(z) || !finite(w)) {
+      exception_state.ThrowDOMException(DOMExceptionCode::kInvalidStateError,
+                                        "Invalid orientation");
+      return nullptr;
+    }
+
     // The only way for the result of a square root to be 0 is if the squared
     // number is 0, so save the square root operation and just compare to 0 now.
-    if (sq_len == 0.0) {
+    if (std::fabs(sq_len) < std::numeric_limits<float>::epsilon()) {  // !AB
       exception_state.ThrowDOMException(DOMExceptionCode::kInvalidStateError,
                                         "Orientation's length cannot be 0");
       return nullptr;
@@ -147,6 +153,34 @@ void XRRigidTransform::EnsureInverse() {
     inverse_ = MakeGarbageCollected<XRRigidTransform>(matrix_->Inverse());
     inverse_->inverse_ = this;
   }
+}
+
+// !AB
+bool XRRigidTransform::IsValid() const {
+  if (!finite(orientation_->x()) || !finite(orientation_->y()) ||
+      !finite(orientation_->z()) || !finite(orientation_->w())) {
+    DLOG(INFO) << __func__ << ": invalid orientation "
+               << " x = " << orientation_->x() << " y = " << orientation_->y()
+               << " z = " << orientation_->z() << " w = " << orientation_->w();
+    return false;
+  }
+  if (!finite(position_->x()) || !finite(position_->y()) ||
+      !finite(position_->z())) {
+    DLOG(INFO) << __func__ << ": invalid position "
+               << " x = " << position_->x() << " y = " << position_->y()
+               << " z = " << position_->z() << " w = " << position_->w();
+    return false;
+  }
+  const double x = orientation_->x();
+  const double y = orientation_->y();
+  const double z = orientation_->z();
+  const double w = orientation_->w();
+  const double sq_len = x * x + y * y + z * z + w * w;
+  if (fabs(sq_len) < std::numeric_limits<float>::epsilon()) {
+    DLOG(INFO) << __func__ << ": invalid: sq_len = " << sq_len;
+    return false;
+  }
+  return true;
 }
 
 void XRRigidTransform::Trace(Visitor* visitor) const {

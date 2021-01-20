@@ -1,3 +1,4 @@
+// Copyright (c) Facebook, Inc. and its affiliates.
 // Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
@@ -39,10 +40,6 @@ class XRReferenceSpace : public XRSpace {
   TransformationMatrix NativeFromOffsetMatrix() override;
   TransformationMatrix OffsetFromNativeMatrix() override;
 
-  // We override getPose to ensure that the viewer pose in viewer space returns
-  // the identity pose instead of the result of multiplying inverse matrices.
-  XRPose* getPose(XRSpace* other_space) override;
-
   device::mojom::blink::XRReferenceSpaceType GetType() const;
 
   XRReferenceSpace* getOffsetReferenceSpace(XRRigidTransform* transform);
@@ -61,6 +58,10 @@ class XRReferenceSpace : public XRSpace {
  private:
   virtual XRReferenceSpace* cloneWithOriginOffset(
       XRRigidTransform* origin_offset);
+
+  // We override getPose to ensure that the viewer pose in viewer space returns
+  // the identity pose instead of the result of multiplying inverse matrices.
+  base::Optional<TransformationMatrix> GetPoseTransformationMatrix(XRSpace* other_space) override;
 
   // Updates the mojo_from_floor_ transform to match the one present in the
   // latest display parameters of a session.

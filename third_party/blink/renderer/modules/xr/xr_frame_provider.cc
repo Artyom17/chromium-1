@@ -702,4 +702,112 @@ void XRFrameProvider::Trace(Visitor* visitor) const {
   visitor->Trace(immersive_observers_);
 }
 
+void XRFrameProvider::SendLayersInfoToCompositor(
+    WTF::Vector<::device::mojom::blink::XRLayerPtr>&& mojo_layers) {
+  if (immersive_presentation_provider_.is_bound()) {
+    VLOG(1) << __func__ << " layers num = " << mojo_layers.size();
+    // TODO
+    NOTIMPLEMENTED();
+    //immersive_presentation_provider_->SetLayers(frame_id_,
+    //                                            std::move(mojo_layers));
+  }
+}
+
+// This method should be called for all layers after all AddLayerToSubmission
+// are called; it will add missing layers for pose-only updates.
+void XRFrameProvider::AddLayerToPoseUpdate(const XRLayer* layer_interface) {
+  DVLOG(2) << __func__;
+  DCHECK(immersive_session_);
+  if (!immersive_presentation_provider_.is_bound()) {
+    return;
+  }
+  if (layer_interface->NeedUpdatePose()) {
+    // TODO
+    NOTIMPLEMENTED();
+    #if 0
+    auto it = layers_to_submit_.find(layer_interface->GetLayerIndex());
+    // Add the element only if it is not already added by previous call to
+    // AddLayerToSubmission.
+    if (it == layers_to_submit_.end()) {
+      ::device::mojom::blink::XRLayerUpdateInfoPtr update_info =
+          layer_interface->GetLayerUpdateInfo();
+      update_info->layer_index = layer_interface->GetLayerIndex();
+      update_info->pose = layer_interface->GetDevicePose();
+
+      layers_to_submit_.insert(std::make_pair(layer_interface->GetLayerIndex(),
+                                              std::move(update_info)));
+    }
+    #endif
+  }
+}
+
+// Adds a layer with modified content into the array of layers for submission.
+void XRFrameProvider::AddLayerToSubmission(const XRLayer* layer_interface) {
+  DVLOG(2) << __func__;
+  DCHECK(immersive_session_);
+  if (!immersive_presentation_provider_.is_bound()) {
+    return;
+  }
+  // TODO
+  NOTIMPLEMENTED();
+  #if 0
+#if DCHECK_IS_ON()
+  DCHECK(layer_interface->GetLayerIndex() != ~0u);
+  // make sure we do not update the same layer multiple times
+  for (const auto& element : layers_to_submit_) {
+    DCHECK(element.second->layer_index != layer_interface->GetLayerIndex())
+        << "value = " << element.second->layer_index;
+  }
+#endif
+
+  ::device::mojom::blink::XRLayerUpdateInfoPtr update_info =
+      layer_interface->GetLayerUpdateInfo();
+  update_info->layer_index = layer_interface->GetLayerIndex();
+
+  WebGLRenderingContextBase* webgl_context;
+
+  DCHECK(layer_interface->session() == immersive_session_);
+
+  webgl_context = layer_interface->context();
+
+  frame_transport_->FramePreImage(webgl_context->ContextGL());
+
+  // TODO(AB): proper multi-transport support
+  update_info->transports.push_back(frame_transport_->GetTransport(
+      webgl_context->ContextGL(), nullptr,
+      nullptr /*std::move(image_release_callback)*/));  // TODO(AB): remove?
+
+  update_info->pose = layer_interface->GetDevicePose();
+
+  layers_to_submit_.insert(
+      std::make_pair(layer_interface->GetLayerIndex(), std::move(update_info)));
+  submission_contexts_.insert(layer_interface->context()->ContextGL());
+  #endif
+}
+
+void XRFrameProvider::SubmitLayers() {
+  if (!immersive_session_) {
+    return;
+  }
+  if (!immersive_presentation_provider_.is_bound()) {
+    return;
+  }
+
+  DVLOG(2) << __FUNCTION__ << " frame_id = " << frame_id_;
+  TRACE_EVENT1("gpu", "XRFrameProvider::SubmitLayers", "frame", frame_id_);
+
+  // TODO
+  NOTIMPLEMENTED();
+  //frame_transport_->FrameSubmit(immersive_presentation_provider_.get(),
+  //                              submit_frame_info_.Clone(),
+  //                              std::move(layers_to_submit_),
+  //                              std::move(submission_contexts_));
+  //layers_to_submit_.clear();
+  //submission_contexts_.clear();
+
+  // Reset our frame id, since anything we'd want to do (resizing/etc) can
+  // no-longer happen to this frame.
+  frame_id_ = -1;
+}
+
 }  // namespace blink

@@ -16,6 +16,8 @@
 #include "base/types/pass_key.h"
 #include "services/metrics/public/cpp/ukm_builders.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_promise_resolver.h"
+#include "third_party/blink/renderer/bindings/modules/v8/rendering_context.h"
+#include "third_party/blink/renderer/bindings/modules/v8/v8_canvas_context_creation_attributes_module.h"
 #include "third_party/blink/renderer/bindings/modules/v8/v8_xr_frame_request_callback.h"
 #include "third_party/blink/renderer/bindings/modules/v8/v8_xr_hit_test_options_init.h"
 #include "third_party/blink/renderer/bindings/modules/v8/v8_xr_image_tracking_result.h"
@@ -26,13 +28,16 @@
 #include "third_party/blink/renderer/core/frame/frame.h"
 #include "third_party/blink/renderer/core/frame/local_dom_window.h"
 #include "third_party/blink/renderer/core/frame/local_frame.h"
+#include "third_party/blink/renderer/core/html/media/html_video_element.h"
 #include "third_party/blink/renderer/core/resize_observer/resize_observer.h"
 #include "third_party/blink/renderer/core/resize_observer/resize_observer_entry.h"
+#include "third_party/blink/renderer/modules/canvas/htmlcanvas/html_canvas_element_module.h"
 #include "third_party/blink/renderer/modules/event_target_modules.h"
 #include "third_party/blink/renderer/modules/xr/type_converters.h"
 #include "third_party/blink/renderer/modules/xr/xr_anchor_set.h"
 #include "third_party/blink/renderer/modules/xr/xr_bounded_reference_space.h"
 #include "third_party/blink/renderer/modules/xr/xr_canvas_input_provider.h"
+#include "third_party/blink/renderer/modules/xr/xr_composition_layer.h"
 #include "third_party/blink/renderer/modules/xr/xr_depth_information.h"
 #include "third_party/blink/renderer/modules/xr/xr_depth_manager.h"
 #include "third_party/blink/renderer/modules/xr/xr_dom_overlay_state.h"
@@ -52,7 +57,9 @@
 #include "third_party/blink/renderer/modules/xr/xr_transient_input_hit_test_source.h"
 #include "third_party/blink/renderer/modules/xr/xr_utils.h"
 #include "third_party/blink/renderer/modules/xr/xr_view.h"
+#include "third_party/blink/renderer/modules/xr/xr_webgl_binding.h"
 #include "third_party/blink/renderer/modules/xr/xr_webgl_layer.h"
+#include "third_party/blink/renderer/modules/xr/xr_webgl_rendering_context.h"
 #include "third_party/blink/renderer/platform/bindings/enumeration_base.h"
 #include "third_party/blink/renderer/platform/bindings/v8_throw_exception.h"
 #include "third_party/blink/renderer/platform/geometry/float_point_3d.h"
@@ -103,6 +110,16 @@ const char kImageTrackingFeatureNotSupported[] =
 
 const char kEntityTypesNotSpecified[] =
     "No entityTypes specified: the array cannot be empty!";
+
+const char kInvalidDocument[] = "No HTML document found";
+
+const char kInvalidCanvas[] = "HTML canvas could not be created";
+
+const char kUsingBaseLayerWithLayersFeature[] = "Can't use baseLayer with layers feature requested";
+
+const char kCantUseLayersWithInlineSession[] = "Can't use layers with inline session";
+
+const char kUsingLayersWithNoLayersFeature[] = "Can't use layers with no layers feature requested";
 
 const double kDegToRad = M_PI / 180.0;
 
@@ -307,6 +324,9 @@ void XRSession::MetricsReporter::ReportFeatureUsed(
     case XRSessionFeature::HAND_INPUT:
       // Not recording metrics for these features currently.
       break;
+    case XRSessionFeature::LAYERS:
+      recorder_->ReportFeatureUsed(XRSessionFeature::LAYERS);
+      break;
   }
 }
 
@@ -346,6 +366,14 @@ XRSession::XRSession(
   client_receiver_.Bind(
       std::move(client_receiver),
       xr->GetExecutionContext()->GetTaskRunner(TaskType::kMiscPlatformAPI));
+
+  use_layers_ = IsFeatureEnabled(device::mojom::XRSessionFeature::LAYERS);
+  if (immersive()) {
+    resource_manager_ = MakeGarbageCollected<XRWebGLResourceManager>(this);
+  }
+
+  animation_frame_ = CreatePresentationFrame(true);
+
   render_state_ = MakeGarbageCollected<XRRenderState>(immersive());
   // Ensure that frame focus is considered in the initial visibilityState.
   UpdateVisibilityState();
@@ -467,6 +495,36 @@ void XRSession::updateRenderState(XRRenderStateInit* init,
     exception_state.ThrowDOMException(DOMExceptionCode::kInvalidStateError,
                                       kIncompatibleLayer);
     return;
+  }
+
+  // if layers are enabled and a baselayer is passed, fail
+  if (init->hasBaseLayer() && use_layers_) {
+    exception_state.ThrowDOMException(DOMExceptionCode::kInvalidStateError,
+                                      kUsingBaseLayerWithLayersFeature);
+    return;
+  } else if (init->hasLayers() && !use_layers_) {
+    exception_state.ThrowDOMException(DOMExceptionCode::kInvalidStateError,
+                                      kUsingLayersWithNoLayersFeature);
+    return;
+  }
+
+  // Validate that all layers were created with this session.
+  if (init->hasLayers()) {
+    if (!immersive()) {
+      exception_state.ThrowDOMException(DOMExceptionCode::kInvalidStateError,
+                                        kCantUseLayersWithInlineSession);
+    }
+
+    for (auto layer : init->layers()) {
+      if (!layer ||
+          (layer->IsXRWebGLLayer() &&
+           (layer->GetAsXRWebGLLayer()->session() != this)) ||
+          (layer->IsXRLayer() && (layer->GetAsXRLayer()->session() != this))) {
+        exception_state.ThrowDOMException(DOMExceptionCode::kInvalidStateError,
+                                          kIncompatibleLayer);
+        return;
+      }
+    }
   }
 
   pending_render_state_.push_back(init);
@@ -763,7 +821,16 @@ int XRSession::requestAnimationFrame(V8XRFrameRequestCallback* callback) {
     return 0;
 
   int id = callback_collection_->RegisterCallback(callback);
-  MaybeRequestFrame();
+  // !AB begin
+  String reasonWhyNot;
+  if (!MaybeRequestFrameWithReason(&reasonWhyNot)) {
+    GetExecutionContext()->AddConsoleMessage(
+        MakeGarbageCollected<ConsoleMessage>(
+            mojom::ConsoleMessageSource::kJavaScript,
+            mojom::ConsoleMessageLevel::kWarning,
+            "requestAnimationFrame failed: " + reasonWhyNot));
+  }
+  // !AB end
   return id;
 }
 
@@ -1368,6 +1435,10 @@ void XRSession::HandleShutdown() {
     end_session_resolver_ = nullptr;
   }
 
+  if (resource_manager_) {
+    resource_manager_->BeginDestruction();
+    resource_manager_ = nullptr;
+  }
   DispatchEvent(*XRSessionEvent::Create(event_type_names::kEnd, this));
   DVLOG(3) << __func__ << ": session end event dispatched";
 
@@ -1388,10 +1459,12 @@ double XRSession::NativeFramebufferScale() const {
   return 1.0;
 }
 
-DoubleSize XRSession::DefaultFramebufferSize() const {
+DoubleSize XRSession::DefaultFramebufferSize(bool multiview) const {
   if (!immersive()) {
     return OutputCanvasSize();
   }
+
+  // TODO: handle multiview param
 
   double scale = default_framebuffer_scale_;
   double width = 0;
@@ -1468,6 +1541,11 @@ void XRSession::UpdateVisibilityState() {
 }
 
 void XRSession::MaybeRequestFrame() {
+  MaybeRequestFrameWithReason(nullptr);
+}
+
+// !AB
+bool XRSession::MaybeRequestFrameWithReason(String* reason_string) {
   bool will_have_base_layer = !!render_state_->baseLayer();
   for (const auto& init : pending_render_state_) {
     if (init->hasBaseLayer()) {
@@ -1475,21 +1553,32 @@ void XRSession::MaybeRequestFrame() {
     }
   }
 
+  if (!will_have_base_layer) {
+    will_have_base_layer |= !!render_state_->hasLayers();
+    for (const auto& init : pending_render_state_) {
+      if (init->hasLayers()) {
+        will_have_base_layer = !!init->hasLayers();
+      }
+    }
+  }
+
   // A page will not be allowed to get frames if its visibility state is hidden.
-  bool page_allowed_frames = visibility_state_ != XRVisibilityState::HIDDEN;
+  const bool page_allowed_frames =
+      visibility_state_ != XRVisibilityState::HIDDEN;
 
   // A page is configured properly if it will have a base layer when the frame
   // callback gets resolved.
-  bool page_configured_properly = will_have_base_layer;
+  const bool page_configured_properly = will_have_base_layer;
 
   // If we have an outstanding callback registered, then we know that the page
   // actually wants frames.
-  bool page_wants_frame =
+  const bool page_wants_frame =
       !callback_collection_->IsEmpty() || !vfc_execution_queue_.IsEmpty();
 
   // A page can process frames if it has its appropriate base layer set and has
   // indicated that it actually wants frames.
-  bool page_can_process_frames = page_configured_properly && page_wants_frame;
+  const bool page_can_process_frames =
+      page_configured_properly && page_wants_frame;
 
   // We consider frames to be throttled if the page is not allowed frames, but
   // otherwise would be able to receive them. Therefore, if the page isn't in a
@@ -1511,7 +1600,23 @@ void XRSession::MaybeRequestFrame() {
   if (request_frame) {
     xr_->frameProvider()->RequestFrame(this);
     pending_frame_ = true;
+  } else if (!pending_frame_) {
+    if (reason_string) {
+      if (!page_allowed_frames) {
+        *reason_string = "Visibility is set to hidden state";
+      } else if (!page_configured_properly) {
+        *reason_string =
+            "Session is not configured correctly: no layer is set (was "
+            "updateRenderState called?)";
+      } else if (!page_wants_frame) {
+        *reason_string =
+            "Session doesn't have proper callback to animate frame (check a "
+            "parameter for requestAnimationFrame call)";
+      }
+    }
+    return false;
   }
+  return true;
 }
 
 void XRSession::DetachOutputCanvas(HTMLCanvasElement* canvas) {
@@ -1531,8 +1636,11 @@ void XRSession::DetachOutputCanvas(HTMLCanvasElement* canvas) {
 
 void XRSession::ApplyPendingRenderState() {
   DCHECK(!prev_base_layer_);
+  DCHECK(!prev_layers_.size());
   if (pending_render_state_.size() > 0) {
     prev_base_layer_ = render_state_->baseLayer();
+    prev_layers_ = render_state_->layers();
+
     HTMLCanvasElement* prev_ouput_canvas = render_state_->output_canvas();
     update_views_next_frame_ = true;
 
@@ -1546,19 +1654,25 @@ void XRSession::ApplyPendingRenderState() {
     // opportunity to update it's drawing buffer size.
     if (!immersive() && render_state_->baseLayer() &&
         render_state_->baseLayer() != prev_base_layer_) {
+      // RC we only get here if there are no layers
       render_state_->baseLayer()->OnResize();
     }
 
+    need_update_layers_info_ = true;
+    UpdateLayersInfoIfNeeded();
+
+    HTMLCanvasElement* new_output_canvas = render_state_->output_canvas();
+
     // If the output canvas changed, remove listeners from the old one and add
     // listeners to the new one as appropriate.
-    if (prev_ouput_canvas != render_state_->output_canvas()) {
+    if (prev_ouput_canvas != new_output_canvas) {
       // Remove anything observing the previous canvas.
       if (prev_ouput_canvas) {
         DetachOutputCanvas(prev_ouput_canvas);
       }
 
       // Monitor the new canvas for resize/input events.
-      HTMLCanvasElement* canvas = render_state_->output_canvas();
+      HTMLCanvasElement* canvas = new_output_canvas;
       if (canvas) {
         if (!resize_observer_) {
           resize_observer_ = ResizeObserver::Create(
@@ -1774,17 +1888,37 @@ void XRSession::OnFrame(
 
   // If there are pending render state changes, apply them now.
   prev_base_layer_ = nullptr;
+  prev_layers_.clear();
   ApplyPendingRenderState();
+
+  UpdateLayersInfoIfNeeded();
 
   if (pending_frame_) {
     pending_frame_ = false;
+    HeapVector<Member<XRWebGLLayer>> scheduled_layers;
+
+    if (resource_manager_) {
+      resource_manager_->OnFrameStart();
+    }
 
     // Don't allow frames to be processed if there's no layers attached to the
     // session. That would allow tracking with no associated visuals.
-    XRWebGLLayer* frame_base_layer = render_state_->baseLayer();
-    if (!frame_base_layer) {
-      DVLOG(2) << __func__ << ": frame_base_layer not present";
+    if (render_state_->hasLayers()) {
+      for (auto& layer : render_state_->layers()) {
+        if (layer->IsXRWebGLLayer()) {
+          scheduled_layers.push_back(layer->GetAsXRWebGLLayer());
+        } else if (layer->IsXRLayer()) {
+          XRCompositionLayer* xr_layer = layer->GetAsXRLayer();
+          if (xr_layer->hasMediaElement()) {
+            AddXRLayer(xr_layer);
+          }
+        }
+      }
+    } else if (render_state_->baseLayer()) {
+      scheduled_layers.push_back(render_state_->baseLayer());
+    }
 
+    if (!render_state_->hasLayers() && !render_state_->baseLayer()) {
       // If we previously had a frame base layer, we need to still attempt to
       // submit a frame back to the runtime, as all "GetFrameData" calls need a
       // matching submit.
@@ -1796,6 +1930,14 @@ void XRSession::OnFrame(
         prev_base_layer_->OnFrameEnd();
         prev_base_layer_ = nullptr;
       }
+      for (auto& layer : prev_layers_) {
+        if (layer->IsXRWebGLLayer()) {
+          layer->GetAsXRWebGLLayer()->OnFrameStart(output_mailbox_holder,
+                                                   camera_image_mailbox_holder);
+          layer->GetAsXRWebGLLayer()->OnFrameEnd();
+        }
+      }
+      prev_layers_.clear();
       return;
     }
 
@@ -1808,22 +1950,23 @@ void XRSession::OnFrame(
       return;
     }
 
-    frame_base_layer->OnFrameStart(output_mailbox_holder,
-                                   camera_image_mailbox_holder);
+    for (auto& layer : scheduled_layers) {
+      layer->OnFrameStart(output_mailbox_holder, camera_image_mailbox_holder);
+      if (visibility_state_ == XRVisibilityState::HIDDEN) {
+        // If the frame is skipped because of the visibility state, make sure we
+        // end the frame anyway.
+        layer->OnFrameEnd();
+      }
+    }
 
-    // Don't allow frames to be processed if the session's visibility state is
-    // "hidden".
     if (visibility_state_ == XRVisibilityState::HIDDEN) {
-      DVLOG(2) << __func__
-               << ": frames to be processed if the session's visibility state "
-                  "is \"hidden\"";
-      // If the frame is skipped because of the visibility state,
-      // make sure we end the frame anyway.
-      frame_base_layer->OnFrameEnd();
+      if (resource_manager_) {
+        resource_manager_->OnFrameEnd();
+      }
       return;
     }
 
-    XRFrame* presentation_frame = CreatePresentationFrame(true);
+    animation_frame_->Activate();
 
     // Make sure that any frame-bounded changed to the views array take effect.
     if (update_views_next_frame_) {
@@ -1845,15 +1988,50 @@ void XRSession::OnFrame(
     // of the callbacks.
     base::AutoReset<bool> resolving(&resolving_frame_, true);
     ExecuteVideoFrameCallbacks(timestamp);
-    callback_collection_->ExecuteCallbacks(this, timestamp, presentation_frame);
+    callback_collection_->ExecuteCallbacks(this, timestamp, animation_frame_);
 
     // The session might have ended in the middle of the frame. Only call
     // OnFrameEnd if it's still valid.
-    if (!ended_)
-      frame_base_layer->OnFrameEnd();
+    if (!ended_) {
+      for (auto& layer : scheduled_layers) {
+        layer->OnFrameEnd();
+      }
+      for (auto& layer : started_xr_layers_) {
+        layer->OnFrameEnd();
+      }
+
+      // Iterate through all the layers and add them into submission if they
+      // require pose updates.
+      bool warning_reported = false;
+      if (render_state_->hasLayers()) {
+        for (const auto& layer : render_state_->layers()) {
+          if (layer->IsXRLayer()) {
+            xr()->frameProvider()->AddLayerToPoseUpdate(layer->GetAsXRLayer());
+          }
+          // Not all layers have valid content, issue a warning
+          if (!warning_reported && layer->needsRedraw()) {
+            warning_reported = true;
+            GetExecutionContext()->AddConsoleMessage(
+                MakeGarbageCollected<ConsoleMessage>(
+                                       mojom::ConsoleMessageSource::kJavaScript,
+                                       mojom::ConsoleMessageLevel::kWarning,
+                                       "Not all layers have valid content; "
+                                       "visual artifacts might occur."));
+          }
+        }
+      }
+
+      xr()->frameProvider()->SubmitLayers();
+    }
+
+    started_xr_layers_.clear();
+
+    if (resource_manager_) {
+      resource_manager_->OnFrameEnd();
+    }
 
     // Ensure the XRFrame cannot be used outside the callbacks.
-    presentation_frame->Deactivate();
+    animation_frame_->Deactivate();
   }
 }
 
@@ -1872,7 +2050,9 @@ bool XRSession::CanReportPoses() const {
   // If we have a session, then user intent is understood. Therefore, (due to
   // the way visibility state is updatd), the rest of the steps really just
   // boil down to whether or not the XRVisibilityState is Visible.
-  return visibility_state_ == XRVisibilityState::VISIBLE;
+  // !AB: both VISIBLE and VISIBLE_BLURRED should keep reporting poses.
+  // return visibility_state_ == XRVisibilityState::VISIBLE;
+  return visibility_state_ != XRVisibilityState::HIDDEN;
 }
 
 bool XRSession::CanEnableAntiAliasing() const {
@@ -1933,7 +2113,12 @@ void XRSession::UpdateCanvasDimensions(Element* element) {
   output_width_ = element->OffsetWidth() * devicePixelRatio;
   output_height_ = element->OffsetHeight() * devicePixelRatio;
 
-  if (render_state_->baseLayer()) {
+  VLOG(2) << __func__ << " " << output_width_ << " x "
+          << output_height_;  // !AB
+
+  if (render_state_->hasLayers()) {
+    render_state_->layers()[0]->GetAsXRWebGLLayer()->OnResize();
+  } else if (render_state_->baseLayer()) {
     render_state_->baseLayer()->OnResize();
   }
 }
@@ -2100,6 +2285,19 @@ void XRSession::OnExitPresent() {
   } else if (waiting_for_shutdown_) {
     HandleShutdown();
   }
+  // !AB
+  if (render_state_ && render_state_->baseLayer()) {
+    XRWebGLLayer* const layer = render_state_->baseLayer();
+    layer->OnResize();
+  }
+
+  if (render_state_ && render_state_->hasLayers()) {
+    for (auto& layer : render_state_->layers()) {
+      if (layer->IsXRWebGLLayer()) {
+        layer->GetAsXRWebGLLayer()->OnResize();
+      }
+    }
+  }
 }
 
 bool XRSession::ValidateHitTestSourceExists(
@@ -2262,6 +2460,127 @@ bool XRSession::HasPendingActivity() const {
          !ended_;
 }
 
+void XRSession::UpdateLayersInfoIfNeeded() {
+  if (!immersive()) {
+    return;
+  }
+  auto layers = render_state_->layers();
+
+  if (resource_manager_) {
+    // If swapchains were discarded by the compositor, then we need
+    // to update swapchains first, before starting to call GetLayerMojoObject()
+    need_update_layers_info_ |= resource_manager_->UpdateSwapChains();
+  }
+
+  if (!need_update_layers_info_) {
+    return;
+  }
+
+  WTF::Vector<::device::mojom::blink::XRLayerPtr> mojo_layers;
+  if (render_state_->hasLayers()) {
+    VLOG(1) << __func__ << ": with layers, cnt = " << int(layers.size());
+    unsigned layer_index = 0;
+    for (auto layer : layers) {
+      ::device::mojom::blink::XRLayerPtr mojo_layer;
+      layer->SetLayerIndex(layer_index++);
+      mojo_layer = layer->GetLayerMojoObject();
+      DCHECK(mojo_layer);
+      mojo_layers.push_back(std::move(mojo_layer));
+    }
+  } else {
+    // base_layer
+    XRWebGLLayer* const base_layer = render_state_->baseLayer();
+    VLOG(1) << __func__ << ": base_layer? " << int(base_layer != nullptr);
+    if (base_layer) {
+      ::device::mojom::blink::XRLayerPtr mojo_layer =
+          base_layer->GetLayerMojoObject();
+      DCHECK(mojo_layer);
+      base_layer->SetLayerIndex(0);
+      mojo_layers.push_back(std::move(mojo_layer));
+    }
+  }
+  xr()->frameProvider()->SendLayersInfoToCompositor(std::move(mojo_layers));
+  need_update_layers_info_ = false;
+}
+
+void XRSession::NotifyLayersChanged() {
+  need_update_layers_info_ = true;
+}
+
+void XRSession::AddXRLayer(XRCompositionLayer* layer) {
+  if (ended_ || !layer /* || pending_frame_ */) {
+    return;
+  }
+
+  if (started_xr_layers_.Contains(layer))
+    return;
+
+  started_xr_layers_.insert(layer);
+  layer->OnFrameStart();
+}
+
+void XRSession::AddLayerToSubmission(const XRLayer* layer_interface) {
+  xr()->frameProvider()->AddLayerToSubmission(layer_interface);
+}
+
+int16_t XRSession::frame_id() const {
+  return xr()->frameProvider()->frame_id();
+}
+
+device::mojom::blink::XRPresentationProvider* XRSession::presentationProvider()
+    const {
+  return xr()->frameProvider()->presentationProvider();
+}
+
+XRWebGLBinding* XRSession::getOrCreateMediaLayerManager(
+    ExceptionState& exception_state) {
+  if (ended_) {
+    exception_state.ThrowDOMException(DOMExceptionCode::kInvalidStateError,
+                                      kSessionEnded);
+    return nullptr;
+  }
+
+  if (!media_layer_manager_) {
+    LocalDOMWindow* window = To<LocalDOMWindow>(xr_->GetExecutionContext());
+    Document* document = (window && window->GetFrame()) ? window->GetFrame()->GetDocument() : nullptr;
+
+    if (!document) {
+      exception_state.ThrowDOMException(DOMExceptionCode::kInvalidStateError,
+                                        kInvalidDocument);
+      return nullptr;
+    }
+
+    HTMLCanvasElement* canvas =
+        static_cast<HTMLCanvasElement*>(document->createElementNS(
+            "http://www.w3.org/1999/xhtml", "canvas", exception_state));
+
+    if (!canvas) {
+      exception_state.ThrowDOMException(DOMExceptionCode::kInvalidStateError,
+                                        kInvalidCanvas);
+      return nullptr;
+    }
+
+    CanvasContextCreationAttributesModule attrs;
+    attrs.setXrCompatible(true);
+    RenderingContext rendering_context;
+    HTMLCanvasElementModule::getContext(*canvas, "webgl2", &attrs,
+                                        rendering_context, exception_state);
+
+    if (!exception_state.Message().IsEmpty()) {
+      return nullptr;
+    }
+
+    XRWebGLRenderingContext context;
+    context.SetWebGL2RenderingContext(
+        rendering_context.GetAsWebGL2RenderingContext());
+
+    media_layer_manager_ =
+        XRWebGLBinding::Create(this, context, exception_state);
+  }
+
+  return media_layer_manager_;
+}
+
 void XRSession::Trace(Visitor* visitor) const {
   visitor->Trace(xr_);
   visitor->Trace(render_state_);
@@ -2284,11 +2603,16 @@ void XRSession::Trace(Visitor* visitor) const {
   visitor->Trace(anchor_ids_to_anchors_);
   visitor->Trace(anchor_ids_to_pending_anchor_promises_);
   visitor->Trace(prev_base_layer_);
+  visitor->Trace(prev_layers_);
+  visitor->Trace(started_xr_layers_);
   visitor->Trace(hit_test_source_ids_to_hit_test_sources_);
   visitor->Trace(hit_test_source_ids_to_transient_input_hit_test_sources_);
   visitor->Trace(views_);
   visitor->Trace(frame_tracked_images_);
   visitor->Trace(image_scores_resolvers_);
+  visitor->Trace(resource_manager_);
+  visitor->Trace(media_layer_manager_);
+  visitor->Trace(animation_frame_);
   EventTargetWithInlineData::Trace(visitor);
 }
 

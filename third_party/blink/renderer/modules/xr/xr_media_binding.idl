@@ -1,0 +1,12 @@
+// (c) Facebook, Inc. and its affiliates. Confidential and proprietary.
+[
+    SecureContext,
+    Exposed=Window,
+    RuntimeEnabled=WebXRLayers
+] interface XRMediaBinding {
+  [RaisesException, Measure] constructor(XRSession session);
+
+  [CallWith=ScriptState, RaisesException] XRQuadLayer createQuadLayer(HTMLVideoElement video, XRMediaQuadLayerInit init);
+  [CallWith=ScriptState, RaisesException] XRCylinderLayer createCylinderLayer(HTMLVideoElement video, XRMediaCylinderLayerInit init);
+  [CallWith=ScriptState, RaisesException] XREquirectLayer createEquirectLayer(HTMLVideoElement video, XRMediaEquirectLayerInit init);
+};

@@ -1,0 +1,26 @@
+// (c) Facebook, Inc. and its affiliates. Confidential and proprietary.
+
+enum XRLayerLayout {
+  "default",
+  "mono",
+  "stereo",
+  "stereo-left-right",
+  "stereo-top-bottom"
+};
+
+[
+    SecureContext,
+    Exposed=Window,
+    RuntimeEnabled=WebXRLayers
+]
+interface XRCompositionLayer: XRLayer {
+  readonly attribute XRLayerLayout layout;
+  readonly attribute unsigned long viewPixelWidth;
+  readonly attribute unsigned long viewPixelHeight;
+
+  attribute boolean blendTextureSourceAlpha;
+  attribute boolean chromaticAberrationCorrection;
+  readonly attribute boolean needsRedraw;
+
+  void destroy();
+};

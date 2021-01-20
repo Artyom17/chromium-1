@@ -1056,6 +1056,33 @@ static_idl_files_in_modules = get_path_info(
         ],
         "abspath")
 
+# Oculus-specific source files (!AB/RC)
+static_idl_files_in_modules += get_path_info(
+        [
+          "//third_party/blink/renderer/modules/xr/xr_composition_layer.idl",
+          "//third_party/blink/renderer/modules/xr/xr_cube_layer.idl",
+          "//third_party/blink/renderer/modules/xr/xr_cube_layer_init.idl",
+          "//third_party/blink/renderer/modules/xr/xr_cylinder_layer.idl",
+          "//third_party/blink/renderer/modules/xr/xr_cylinder_layer_init.idl",
+          "//third_party/blink/renderer/modules/xr/xr_equirect_layer.idl",
+          "//third_party/blink/renderer/modules/xr/xr_equirect_layer_init.idl",
+          "//third_party/blink/renderer/modules/xr/xr_layer_event.idl",
+          "//third_party/blink/renderer/modules/xr/xr_layer_event_init.idl",
+          "//third_party/blink/renderer/modules/xr/xr_layer_init.idl",
+          "//third_party/blink/renderer/modules/xr/xr_media_binding.idl",
+          "//third_party/blink/renderer/modules/xr/xr_media_cylinder_layer_init.idl",
+          "//third_party/blink/renderer/modules/xr/xr_media_equirect_layer_init.idl",
+          "//third_party/blink/renderer/modules/xr/xr_media_layer_init.idl",
+          "//third_party/blink/renderer/modules/xr/xr_media_quad_layer_init.idl",
+          "//third_party/blink/renderer/modules/xr/xr_projection_layer.idl",
+          "//third_party/blink/renderer/modules/xr/xr_projection_layer_init.idl",
+          "//third_party/blink/renderer/modules/xr/xr_quad_layer.idl",
+          "//third_party/blink/renderer/modules/xr/xr_quad_layer_init.idl",
+          "//third_party/blink/renderer/modules/xr/xr_sub_image.idl",
+          "//third_party/blink/renderer/modules/xr/xr_webgl_sub_image.idl",
+        ],
+        "abspath")
+
 # Direct Sockets
 if (!is_android) {
   static_idl_files_in_modules += get_path_info(

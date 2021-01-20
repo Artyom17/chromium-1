@@ -868,6 +868,9 @@ const base::Feature kWebXrHitTest{"WebXRHitTest",
 const base::Feature kWebXrIncubations{"WebXRIncubations",
                                       base::FEATURE_DISABLED_BY_DEFAULT};
 
+// Enables access to XR layers.
+const base::Feature kWebXrLayers{"WebXRLayers",
+                                 base::FEATURE_DISABLED_BY_DEFAULT};
 #if defined(OS_ANDROID)
 // Autofill Accessibility in Android.
 // crbug.com/627860

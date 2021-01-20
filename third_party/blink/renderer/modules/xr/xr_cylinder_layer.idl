@@ -1,0 +1,15 @@
+// (c) Facebook, Inc. and its affiliates. Confidential and proprietary.
+
+[
+    SecureContext,
+    Exposed=Window,
+    RuntimeEnabled=WebXRLayers
+]
+interface XRCylinderLayer : XRCompositionLayer {
+  [RaisesException] attribute XRSpace space;
+  attribute XRRigidTransform transform;
+
+  attribute float radius;
+  attribute float centralAngle;
+  attribute float aspectRatio;
+};

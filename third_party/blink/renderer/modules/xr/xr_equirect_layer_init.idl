@@ -1,0 +1,10 @@
+// (c) Facebook, Inc. and its affiliates. Confidential and proprietary.
+
+dictionary XREquirectLayerInit : XRLayerInit {
+  XRTextureType textureType = "texture";
+  XRRigidTransform? transform;
+  float radius = 0.0;
+  float centralHorizontalAngle = 6.28318;
+  float upperVerticalAngle = 1.570795;
+  float lowerVerticalAngle = -1.570795;
+};

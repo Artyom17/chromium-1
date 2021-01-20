@@ -1,0 +1,14 @@
+// (c) Facebook, Inc. and its affiliates. Confidential and proprietary.
+
+[
+    SecureContext,
+    Exposed=Window,
+    RuntimeEnabled=WebXRLayers
+]
+interface XRQuadLayer : XRCompositionLayer {
+  [RaisesException] attribute XRSpace space;
+  attribute XRRigidTransform transform;
+
+  attribute float width;
+  attribute float height;
+};

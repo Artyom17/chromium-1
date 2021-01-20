@@ -1,0 +1,7 @@
+// (c) Facebook, Inc. and its affiliates. Confidential and proprietary.
+
+dictionary XRMediaLayerInit {
+  required XRSpace space;
+  XRLayerLayout layout = "mono";
+  boolean invertStereo = false;
+};

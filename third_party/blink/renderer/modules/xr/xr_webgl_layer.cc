@@ -119,7 +119,8 @@ XRWebGLLayer* XRWebGLLayer::Create(XRSession* session,
         initializer->framebufferScaleFactor(), kFramebufferMinScale, max_scale);
   }
 
-  DoubleSize framebuffers_size = session->DefaultFramebufferSize();
+  DoubleSize framebuffers_size =
+      session->DefaultFramebufferSize(false /* !multiview */);
 
   IntSize desired_size(framebuffers_size.Width() * framebuffer_scale,
                        framebuffers_size.Height() * framebuffer_scale);
@@ -151,7 +152,7 @@ XRWebGLLayer::XRWebGLLayer(XRSession* session,
                            WebGLFramebuffer* framebuffer,
                            double framebuffer_scale,
                            bool ignore_depth_values)
-    : XRLayer(session),
+    : XRLayer(session, webgl_context),
       webgl_context_(webgl_context),
       framebuffer_(framebuffer),
       framebuffer_scale_(framebuffer_scale),
@@ -178,21 +179,32 @@ uint32_t XRWebGLLayer::framebufferWidth() const {
   if (drawing_buffer_) {
     return drawing_buffer_->size().Width();
   }
-  return webgl_context_->drawingBufferWidth();
+  return context()->drawingBufferWidth();
 }
 
 uint32_t XRWebGLLayer::framebufferHeight() const {
   if (drawing_buffer_) {
     return drawing_buffer_->size().Height();
   }
-  return webgl_context_->drawingBufferHeight();
+  return context()->drawingBufferHeight();
 }
 
 bool XRWebGLLayer::antialias() const {
   if (drawing_buffer_) {
     return drawing_buffer_->antialias();
   }
-  return webgl_context_->GetDrawingBuffer()->Multisample();
+  return context()->GetDrawingBuffer()->Multisample();
+}
+
+void XRWebGLLayer::getXRWebGLRenderingContext(
+    XRWebGLRenderingContext& result) const {
+  if (context()->ContextType() == Platform::kWebGL2ContextType) {
+    result.SetWebGL2RenderingContext(
+        static_cast<WebGL2RenderingContext*>(context()));
+  } else {
+    result.SetWebGLRenderingContext(
+        static_cast<WebGLRenderingContext*>(context()));
+  }
 }
 
 XRViewport* XRWebGLLayer::getViewport(XRView* view) {
@@ -273,7 +285,7 @@ void XRWebGLLayer::UpdateViewports() {
       right_viewport_ = nullptr;
     }
 
-    session()->xr()->frameProvider()->UpdateWebGLLayerViewports(this);
+    session()->UpdateLayersInfoIfNeeded();
   } else {
     // Currently, only immersive sessions implement dynamic viewport scaling.
     // Ignore the setting for non-immersive sessions, effectively treating
@@ -285,7 +297,7 @@ void XRWebGLLayer::UpdateViewports() {
 
 HTMLCanvasElement* XRWebGLLayer::output_canvas() const {
   if (!framebuffer_) {
-    return webgl_context_->canvas();
+    return context()->canvas();
   }
   return nullptr;
 }
@@ -349,50 +361,60 @@ void XRWebGLLayer::BindBufferTexture(
 }
 
 void XRWebGLLayer::OnFrameEnd() {
+  bool framebuffer_dirty = false;
   if (framebuffer_) {
     framebuffer_->MarkOpaqueBufferComplete(false);
-    if (is_direct_draw_frame) {
-      drawing_buffer_->DoneWithSharedBuffer();
-      is_direct_draw_frame = false;
+    framebuffer_dirty = framebuffer_->HaveContentsChanged();
+  }
+
+  const int16_t vr_frame_id = session()->xr()->frameProvider()->frame_id();
+
+  // Submit the frame to the XR compositor.
+  if (session()->immersive()) {
+    if (!drawing_buffer_ || drawing_buffer_->ContextLost()) {
+      DVLOG(1) << __func__ << ": exiting early, context is lost";
+      return;  // !AB
     }
 
-    // Submit the frame to the XR compositor.
-    if (session()->immersive()) {
-      bool framebuffer_dirty = framebuffer_->HaveContentsChanged();
-
-      // Not drawing to the framebuffer during a session's rAF callback is
-      // usually a sign that something is wrong, such as the app drawing to the
-      // wrong render target. Show a warning in the console if we see that
-      // happen too many times.
-      if (!framebuffer_dirty) {
-        // If the session doesn't have a pose then the framebuffer being clean
-        // may be expected, so we won't count those frames.
-        bool frame_had_pose = !!session()->GetMojoFrom(
-            device::mojom::blink::XRReferenceSpaceType::kViewer);
-        if (frame_had_pose) {
-          clean_frame_count++;
-          if (clean_frame_count == kCleanFrameWarningLimit) {
-            session()->xr()->GetExecutionContext()->AddConsoleMessage(
-                MakeGarbageCollected<ConsoleMessage>(
-                    mojom::blink::ConsoleMessageSource::kRendering,
-                    mojom::blink::ConsoleMessageLevel::kWarning,
-                    kCleanFrameWarning));
-          }
+    // Not drawing to the framebuffer during a session's rAF callback is
+    // usually a sign that something is wrong, such as the app drawing to the
+    // wrong render target. Show a warning in the console if we see that
+    // happen too many times.
+    if (!framebuffer_dirty) {
+      // If the session doesn't have a pose then the framebuffer being clean
+      // may be expected, so we won't count those frames.
+      bool frame_had_pose = !!session()->GetMojoFrom(
+          device::mojom::blink::XRReferenceSpaceType::kViewer);
+      if (frame_had_pose) {
+        clean_frame_count++;
+        if (clean_frame_count == kCleanFrameWarningLimit) {
+          session()->xr()->GetExecutionContext()->AddConsoleMessage(
+              MakeGarbageCollected<ConsoleMessage>(
+                  mojom::blink::ConsoleMessageSource::kRendering,
+                  mojom::blink::ConsoleMessageLevel::kWarning,
+                  kCleanFrameWarning));
         }
       }
-
-      // Always call submit, but notify if the contents were changed or not.
-      session()->xr()->frameProvider()->SubmitWebGLLayer(this,
-                                                         framebuffer_dirty);
-      if (camera_image_mailbox_holder_ && camera_image_texture_id_) {
-        DVLOG(3) << __func__ << "Deleting camera image texture";
-        gpu::gles2::GLES2Interface* gl = drawing_buffer_->ContextGL();
-        gl->EndSharedImageAccessDirectCHROMIUM(camera_image_texture_id_);
-        gl->DeleteTextures(1, &camera_image_texture_id_);
-        camera_image_texture_id_ = 0;
-        camera_image_mailbox_holder_ = base::nullopt;
-      }
     }
+
+    if (camera_image_mailbox_holder_ && camera_image_texture_id_) {
+      DVLOG(3) << __func__ << "Deleting camera image texture";
+      gpu::gles2::GLES2Interface* gl = drawing_buffer_->ContextGL();
+      gl->EndSharedImageAccessDirectCHROMIUM(camera_image_texture_id_);
+      gl->DeleteTextures(1, &camera_image_texture_id_);
+      camera_image_texture_id_ = 0;
+      camera_image_mailbox_holder_ = base::nullopt;
+    }
+
+    if (context()->isContextLost()) {
+      LOG(ERROR) << __func__ << ": context is lost";
+      return;
+    }
+
+    if (framebuffer_dirty) {
+      session()->xr()->frameProvider()->AddLayerToSubmission(this);
+    }
+    // !AB end
   }
 }
 
@@ -400,7 +422,7 @@ void XRWebGLLayer::OnResize() {
   if (!session()->immersive() && drawing_buffer_) {
     // For non-immersive sessions a resize indicates we should adjust the
     // drawing buffer size to match the canvas.
-    DoubleSize framebuffers_size = session()->DefaultFramebufferSize();
+    DoubleSize framebuffers_size = session()->DefaultFramebufferSize(false);
 
     IntSize desired_size(framebuffers_size.Width() * framebuffer_scale_,
                          framebuffers_size.Height() * framebuffer_scale_);
@@ -425,6 +447,62 @@ void XRWebGLLayer::Trace(Visitor* visitor) const {
   visitor->Trace(webgl_context_);
   visitor->Trace(framebuffer_);
   XRLayer::Trace(visitor);
+}
+
+::device::mojom::blink::XRLayerPtr XRWebGLLayer::GetLayerMojoObject() const {
+  DCHECK(!viewports_dirty_);
+  const XRViewport* const left = left_viewport_;
+  const XRViewport* const right = right_viewport_;
+  const float width = framebufferWidth();
+  const float height = framebufferHeight();
+
+  // We may only have one eye view, i.e. in smartphone immersive AR mode.
+  // Use all-zero bounds for unused views.
+  const gfx::RectF left_coords =
+      left ? gfx::RectF(
+                 static_cast<float>(left->x()) / width,
+                 static_cast<float>(height - (left->y() + left->height())) /
+                     height,
+                 static_cast<float>(left->width()) / width,
+                 static_cast<float>(left->height()) / height)
+           : gfx::RectF();
+  const gfx::RectF right_coords =
+      right ? gfx::RectF(
+                  static_cast<float>(right->x()) / width,
+                  static_cast<float>(height - (right->y() + right->height())) /
+                      height,
+                  static_cast<float>(right->width()) / width,
+                  static_cast<float>(right->height()) / height)
+            : gfx::RectF();
+
+  NOTIMPLEMENTED();
+  ::device::mojom::blink::XRLayerPtr xrlayer =
+      ::device::mojom::blink::XRLayer::New();
+  #if 0
+  xrlayer->header = ::device::mojom::blink::XRLayerHeaderInfo::New();
+  xrlayer->header->image_source_handles.push_back(GetImageSourceHandle());
+  xrlayer->header->eye_visibility =
+      ::device::mojom::blink::XRLayerEyeVisibility::SIDE_BY_SIDE_STEREO;
+  xrlayer->header->chromatic_aberration_correction = false; // TODO
+  xrlayer->header->blend_texture_source_alpha = false;  //??? TODO(AB)
+
+  ::device::mojom::blink::XRBaseLayerInfoPtr base =
+      ::device::mojom::blink::XRBaseLayerInfo::New(left_coords, right_coords);
+  xrlayer->data =
+      ::device::mojom::blink::XRLayerUnion::NewBase(std::move(base));
+  #endif
+  return xrlayer;
+}
+
+::device::mojom::blink::XRLayerUpdateInfoPtr XRWebGLLayer::GetLayerUpdateInfo()
+    const {
+  VLOG(2) << __func__;
+  NOTIMPLEMENTED();
+  device::mojom::blink::XRLayerUpdateInfoPtr update_info =
+      device::mojom::blink::XRLayerUpdateInfo::New();
+  update_info->layer_index = index_;
+  //update_info->swap_chain_index = GetSwapChainIndex();
+  return update_info;
 }
 
 }  // namespace blink

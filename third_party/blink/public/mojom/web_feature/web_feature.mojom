@@ -3094,6 +3094,10 @@ enum WebFeature {
   kRTCPeerConnectionSdpSemanticsPlanB = 3773,
   kFetchRespondWithNoResponseWithUsedRequestBody = 3774,
 
+  kV8XRWebGLBinding_Constructor,
+  kV8XRMediaBinding_Constructor,
+  kV8XRMediaLayerFactory_Constructor,
+
   // Add new features immediately above this line. Don't change assigned
   // numbers of any item, and don't reuse removed slots.
   // Also, run update_use_counter_feature_enum.py in

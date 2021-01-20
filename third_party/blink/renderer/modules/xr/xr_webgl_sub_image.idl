@@ -1,0 +1,9 @@
+// (c) Facebook, Inc. and its affiliates. Confidential and proprietary.
+
+interface XRWebGLSubImage : XRSubImage {
+  [SameObject] readonly attribute WebGLTexture colorTexture;
+  [SameObject] readonly attribute WebGLTexture? depthStencilTexture;
+  readonly attribute unsigned long? imageIndex;
+  readonly attribute unsigned long textureWidth;
+  readonly attribute unsigned long textureHeight;
+};

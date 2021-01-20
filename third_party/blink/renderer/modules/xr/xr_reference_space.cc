@@ -1,3 +1,4 @@
+// Copyright (c) Facebook, Inc. and its affiliates.
 // Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
@@ -40,7 +41,7 @@ ReferenceSpaceType XRReferenceSpace::StringToReferenceSpaceType(
 // origin offset starts as identity transform
 XRReferenceSpace::XRReferenceSpace(XRSession* session, ReferenceSpaceType type)
     : XRReferenceSpace(session,
-                       MakeGarbageCollected<XRRigidTransform>(nullptr, nullptr),
+                       MakeGarbageCollected<XRRigidTransform>(),
                        type) {}
 
 XRReferenceSpace::XRReferenceSpace(XRSession* session,
@@ -50,23 +51,20 @@ XRReferenceSpace::XRReferenceSpace(XRSession* session,
 
 XRReferenceSpace::~XRReferenceSpace() = default;
 
-XRPose* XRReferenceSpace::getPose(XRSpace* other_space) {
+base::Optional<TransformationMatrix>
+XRReferenceSpace::GetPoseTransformationMatrix(XRSpace* other_space) {
   if (type_ == ReferenceSpaceType::kViewer) {
     base::Optional<TransformationMatrix> other_offset_from_viewer =
         other_space->OffsetFromViewer();
     if (!other_offset_from_viewer) {
-      return nullptr;
+      return base::nullopt;
     }
 
     auto viewer_from_offset = NativeFromOffsetMatrix();
 
-    auto other_offset_from_offset =
-        *other_offset_from_viewer * viewer_from_offset;
-
-    return MakeGarbageCollected<XRPose>(other_offset_from_offset,
-                                        session()->EmulatedPosition());
+    return *other_offset_from_viewer * viewer_from_offset;
   } else {
-    return XRSpace::getPose(other_space);
+    return XRSpace::GetPoseTransformationMatrix(other_space);
   }
 }
 

@@ -1,3 +1,4 @@
+# Copyright (c) Facebook, Inc. and its affiliates.
 # Copyright 2020 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
@@ -45,6 +46,20 @@ modules_idl_files = [
   "xr_webgl_layer.idl",
 ]
 
+# !AB/RC
+modules_idl_files += [
+  "xr_composition_layer.idl",
+  "xr_cube_layer.idl",
+  "xr_cylinder_layer.idl",
+  "xr_equirect_layer.idl",
+  "xr_layer_event.idl",
+  "xr_media_binding.idl",
+  "xr_projection_layer.idl",
+  "xr_quad_layer.idl",
+  "xr_sub_image.idl",
+  "xr_webgl_sub_image.idl",
+]
+
 modules_callback_function_idl_files = [ "xr_frame_request_callback.idl" ]
 
 modules_dictionary_idl_files = [
@@ -64,6 +79,21 @@ modules_dictionary_idl_files = [
 ]
 
 modules_typedefs_enums_only_idl_files = [ "xr_webgl_context.idl" ]
+
+# !AB/RC
+modules_dictionary_idl_files += [
+  "xr_cube_layer_init.idl",
+  "xr_cylinder_layer_init.idl",
+  "xr_equirect_layer_init.idl",
+  "xr_layer_event_init.idl",
+  "xr_layer_init.idl",
+  "xr_media_cylinder_layer_init.idl",
+  "xr_media_equirect_layer_init.idl",
+  "xr_media_layer_init.idl",
+  "xr_media_quad_layer_init.idl",
+  "xr_projection_layer_init.idl",
+  "xr_quad_layer_init.idl",
+]
 
 modules_dependency_idl_files = [
   "element_xr.idl",

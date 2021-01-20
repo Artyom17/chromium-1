@@ -4,12 +4,19 @@
 
 #include "third_party/blink/renderer/modules/xr/xr_joint_pose.h"
 #include "third_party/blink/renderer/modules/xr/xr_pose.h"
+#include "third_party/blink/renderer/modules/xr/xr_session.h"
 
 namespace blink {
 
-XRJointPose::XRJointPose(const TransformationMatrix& transform,
+XRJointPose::XRJointPose(XRSession* session,
+                         const TransformationMatrix& transform,
                          bool emulatedPosition,
                          float radius)
-    : XRPose(transform, emulatedPosition), radius_(radius) {}
+    : XRPose(transform, emulatedPosition), session_(session), radius_(radius) {}
+
+void XRJointPose::Trace(blink::Visitor* visitor) const {
+  visitor->Trace(session_);
+  XRPose::Trace(visitor);
+}
 
 }  // namespace blink

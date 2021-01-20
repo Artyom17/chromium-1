@@ -1,0 +1,9 @@
+// (c) Facebook, Inc. and its affiliates. Confidential and proprietary.
+
+dictionary XRProjectionLayerInit {
+  XRTextureType textureType = "texture";
+  boolean depth = true;
+  boolean stencil = false;
+  boolean alpha = true;
+  double scaleFactor = 1.0;
+};

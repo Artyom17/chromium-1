@@ -6,6 +6,7 @@
 
 #include <utility>
 
+#include "components/permissions/permission_request.h"
 #include "services/metrics/public/cpp/ukm_builders.h"
 #include "third_party/blink/public/common/browser_interface_broker_proxy.h"
 #include "third_party/blink/public/mojom/feature_policy/feature_policy.mojom-blink.h"
@@ -28,6 +29,7 @@
 #include "third_party/blink/renderer/core/loader/document_loader.h"
 #include "third_party/blink/renderer/modules/event_modules.h"
 #include "third_party/blink/renderer/modules/event_target_modules.h"
+#include "third_party/blink/renderer/modules/permissions/permission_utils.h"
 #include "third_party/blink/renderer/modules/xr/xr_frame_provider.h"
 #include "third_party/blink/renderer/modules/xr/xr_session.h"
 #include "third_party/blink/renderer/platform/bindings/v8_throw_exception.h"
@@ -154,6 +156,9 @@ base::Optional<device::mojom::XRSessionFeature> StringToXRSessionFeature(
              feature_string == "hand-tracking") {
     return device::mojom::XRSessionFeature::HAND_INPUT;
   }
+  else if (feature_string == "layers") {
+    return device::mojom::XRSessionFeature::LAYERS;
+  }
 
   return base::nullopt;
 }
@@ -167,6 +172,7 @@ bool IsFeatureValidForMode(device::mojom::XRSessionFeature feature,
     case device::mojom::XRSessionFeature::REF_SPACE_VIEWER:
     case device::mojom::XRSessionFeature::REF_SPACE_LOCAL:
     case device::mojom::XRSessionFeature::REF_SPACE_LOCAL_FLOOR:
+    case device::mojom::XRSessionFeature::LAYERS: //!AB/RC
       return true;
     case device::mojom::XRSessionFeature::REF_SPACE_BOUNDED_FLOOR:
     case device::mojom::XRSessionFeature::REF_SPACE_UNBOUNDED:
@@ -215,6 +221,13 @@ bool HasRequiredFeaturePolicy(const ExecutionContext* context,
   switch (feature) {
     case device::mojom::XRSessionFeature::REF_SPACE_VIEWER:
       return true;
+    case device::mojom::XRSessionFeature::LAYERS: // !AB/RC
+      if (!RuntimeEnabledFeatures::WebXRLayersEnabled()) {
+        return false;
+      }
+      return context->IsFeatureEnabled(mojom::blink::FeaturePolicyFeature::kWebXr,
+                                   ReportOptions::kReportOnFailure);
+      break;
     case device::mojom::XRSessionFeature::REF_SPACE_LOCAL:
     case device::mojom::XRSessionFeature::REF_SPACE_LOCAL_FLOOR:
     case device::mojom::XRSessionFeature::REF_SPACE_BOUNDED_FLOOR:

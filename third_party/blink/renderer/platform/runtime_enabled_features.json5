@@ -2252,7 +2252,7 @@
     },
     {
       name: "WebXRHandInput",
-      depends_on: ["WebXRARModule"],
+      depends_on: ["WebXR"],
       status: "experimental"
     },
     {
@@ -2268,6 +2268,11 @@
     {
       name: "WebXRImageTracking",
       depends_on: ["WebXRARModule"],
+      status: "experimental",
+    },
+    {
+      name: "WebXRLayers",
+      depends_on: ["WebXR"],
       status: "experimental",
     },
     {

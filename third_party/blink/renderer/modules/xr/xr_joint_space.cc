@@ -2,6 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include "third_party/blink/renderer/modules/xr/xr_input_source.h"
 #include "third_party/blink/renderer/modules/xr/xr_joint_space.h"
 #include "third_party/blink/renderer/modules/xr/xr_space.h"
 
@@ -9,10 +10,12 @@ namespace blink {
 
 XRJointSpace::XRJointSpace(
     XRSession* session,
+    XRInputSource* input_source,
     std::unique_ptr<TransformationMatrix> mojo_from_joint,
     String joint_name,
     float radius)
     : XRSpace(session),
+      input_source_(input_source),
       mojo_from_joint_space_(std::move(mojo_from_joint)),
       joint_name_(joint_name),
       radius_(radius) {}
@@ -28,8 +31,7 @@ bool XRJointSpace::EmulatedPosition() const {
 
 base::Optional<device::mojom::blink::XRNativeOriginInformation>
 XRJointSpace::NativeOrigin() const {
-  NOTIMPLEMENTED();
-  return base::nullopt;
+  return input_source_->nativeOrigin();
 }
 
 bool XRJointSpace::IsStationary() const {
@@ -41,6 +43,7 @@ std::string XRJointSpace::ToString() const {
 }
 
 void XRJointSpace::Trace(Visitor* visitor) const {
+  visitor->Trace(input_source_);
   XRSpace::Trace(visitor);
 }
 

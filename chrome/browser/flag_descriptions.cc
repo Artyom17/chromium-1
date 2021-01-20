@@ -2542,12 +2542,21 @@ const char kWebXrForceRuntimeDescription[] =
     "usually be enabled or would otherwise not be selected based on the "
     "attached hardware.";
 
+const char kWebXrHandInput[] =
+    "WebXR experiences with hand and joints tracking";
+const char kWebXrHandInputDescription[] =
+    "Allow WebXR experiences with hand and joints tracking enabled";
+
 const char kWebXrRuntimeChoiceNone[] = "No Runtime";
 const char kWebXrRuntimeChoiceOpenXR[] = "OpenXR";
 
 const char kWebXrIncubationsName[] = "WebXR Incubations";
 const char kWebXrIncubationsDescription[] =
     "Enables experimental features for WebXR.";
+
+const char kWebXrLayersName[] = "WebXR Layers";
+const char kWebXrLayersDescription[] =
+    "Enables experimental support for layers in WebXR.";
 
 const char kWebXrMultiGpuName[] = "WebXR Multi GPU Support";
 const char kWebXrMultiGpuDescription[] =

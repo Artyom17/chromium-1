@@ -1474,11 +1474,17 @@ extern const char kWebrtcUseMinMaxVEADimensionsDescription[];
 extern const char kWebXrForceRuntimeName[];
 extern const char kWebXrForceRuntimeDescription[];
 
+extern const char kWebXrHandInput[];
+extern const char kWebXrHandInputDescription[];
+
 extern const char kWebXrRuntimeChoiceNone[];
 extern const char kWebXrRuntimeChoiceOpenXR[];
 
 extern const char kWebXrIncubationsName[];
 extern const char kWebXrIncubationsDescription[];
+
+extern const char kWebXrLayersName[];
+extern const char kWebXrLayersDescription[];
 
 extern const char kWebXrMultiGpuName[];
 extern const char kWebXrMultiGpuDescription[];

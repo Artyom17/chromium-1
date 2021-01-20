@@ -1,3 +1,4 @@
+// Copyright (c) Facebook, Inc. and its affiliates.
 // Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
@@ -86,7 +87,12 @@ class XRSpace : public EventTargetWithInlineData {
   // Gets the pose of this space's origin in |other_space|. This is a transform
   // that maps from this space to the other's space, or in other words:
   // other_from_this.
-  virtual XRPose* getPose(XRSpace* other_space);
+  XRPose* getPose(XRSpace* other_space);
+
+  // Gets the matrix of the transform that maps from this space to the other's
+  // space, or in other words: other_from_this.
+  // This is an optimization of getPose to reduce the number of object allocations.
+  bool TryFillPoseMatrix(XRSpace* other_space, TransformationMatrix::FloatMatrix4& out_matrix);
 
   XRSession* session() const { return session_; }
 
@@ -102,7 +108,10 @@ class XRSpace : public EventTargetWithInlineData {
 
   void Trace(Visitor* visitor) const override;
 
- private:
+protected:
+  virtual base::Optional<TransformationMatrix> GetPoseTransformationMatrix(XRSpace* other_space);
+
+private:
   const Member<XRSession> session_;
 };
 

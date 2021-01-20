@@ -1,3 +1,4 @@
+// Copyright (c) Facebook, Inc. and its affiliates.
 // Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
@@ -14,6 +15,9 @@ import "ui/display/mojom/display.mojom";
 import "ui/gfx/geometry/mojom/geometry.mojom";
 import "ui/gfx/mojom/gpu_fence_handle.mojom";
 import "ui/gfx/mojom/transform.mojom";
+
+import "device/vr/public/mojom/xr_common.mojom";
+import "device/vr/public/mojom/xr_layers.mojom";
 
 //
 // WebXR interfaces
@@ -35,6 +39,7 @@ enum XRDeviceId {
   // WINDOWS_MIXED_REALITY_ID = 6,
   ARCORE_DEVICE_ID = 7,
   [EnableIf=enable_openxr] OPENXR_DEVICE_ID = 8,
+  [EnableIf=enable_ovr_mobile] OCULUS_MOBILE_DEVICE_ID = 9, //!AB
 };
 
 enum XRHandedness {
@@ -67,6 +72,7 @@ enum XRSessionFeature {
   DEPTH = 12, // Experimental feature.
   IMAGE_TRACKING = 13, // Experimental feature.
   HAND_INPUT = 14, // Experimental feature.
+  LAYERS = 15, // Experimental feature.
 };
 
 // These values are persisted to logs. Entries should not be renumbered and
@@ -197,6 +203,15 @@ struct XRPresentationConnection {
   XRPresentationTransportOptions transport_options;
 };
 
+struct XRJointSpace {
+  // false if joint is supported but not currently being tracked
+  bool is_tracked;
+  uint16 joint_index;
+  float radius;
+  // Joint pose in mojo space
+  gfx.mojom.Transform mojo_from_native;
+};
+
 struct XRInputSourceDescription {
   XRTargetRayMode target_ray_mode;
   XRHandedness handedness;
@@ -281,6 +296,10 @@ struct XRInputSourceState {
   // the ARCore device's immersive-ar mode supports it when requested via
   // XRSessionFeature.DOM_OVERLAY aka "dom-overlay".)
   gfx.mojom.PointF? overlay_pointer_position;
+
+  // Hand joint pose and radius in mojo space. This is null when input source
+  // is not a hands input
+  array<XRJointSpace>? hand_joints;
 };
 
 //
@@ -309,12 +328,14 @@ struct VRPose {
   bool emulated_position;
 };
 
+/*!AB: moved to xr_common.mojom
 // An entity's pose. Used by entities for which both position and orientation is
 // always known (e.g. anchors, planes).
 struct Pose {
   gfx.mojom.Quaternion orientation;
   gfx.mojom.Point3F position;
 };
+*/
 
 struct XRRay {
   gfx.mojom.Point3F origin;

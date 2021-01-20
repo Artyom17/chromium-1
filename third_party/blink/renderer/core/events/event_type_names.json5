@@ -237,6 +237,7 @@
     "readingerror",
     "readystatechange",
     "reflectionchange",
+    "redraw",
     "rejectionhandled",
     "release",
     "remove",

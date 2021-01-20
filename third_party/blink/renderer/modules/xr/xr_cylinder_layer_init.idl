@@ -1,0 +1,9 @@
+// (c) Facebook, Inc. and its affiliates. Confidential and proprietary.
+
+dictionary XRCylinderLayerInit : XRLayerInit {
+  XRTextureType textureType = "texture";
+  XRRigidTransform? transform;
+  float radius = 2.0;
+  float centralAngle = 0.78539;
+  float aspectRatio = 2.0;
+};

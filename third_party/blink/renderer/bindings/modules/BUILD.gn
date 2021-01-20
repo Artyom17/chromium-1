@@ -78,6 +78,11 @@ generate_event_interfaces("modules_bindings_generated_event_interfaces") {
     "//third_party/blink/renderer/modules/xr/xr_session_event.idl",
   ]
 
+  # Layer-specific source files
+  sources += [
+    "//third_party/blink/renderer/modules/xr/xr_layer_event.idl",
+  ]
+
   output_file = "modules/event_interface_modules_names.json5"
   suffix = "Modules"
 }

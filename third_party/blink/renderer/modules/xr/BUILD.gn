@@ -1,3 +1,4 @@
+# Copyright (c) Facebook, Inc. and its affiliates.
 # Copyright 2017 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
@@ -109,6 +110,34 @@ blink_modules_sources("xr") {
     "xr_webgl_layer.cc",
     "xr_webgl_layer.h",
     "xr_webgl_rendering_context.h",
+  ]
+
+  # Layer-specific source files
+  sources += [
+    "xr_composition_layer.cc",
+    "xr_composition_layer.h",
+    "xr_cube_layer.cc",
+    "xr_cube_layer.h",
+    "xr_cylinder_layer.cc",
+    "xr_cylinder_layer.h",
+    "xr_equirect_layer.cc",
+    "xr_equirect_layer.h",
+    "xr_layer_event.cc",
+    "xr_layer_event.h",
+    "xr_media_binding.cc",
+    "xr_media_binding.h",
+    "xr_projection_layer.cc",
+    "xr_projection_layer.h",
+    "xr_quad_layer.cc",
+    "xr_quad_layer.h",
+    "xr_stereo_layout_layer_base.cc",
+    "xr_stereo_layout_layer_base.h",
+    "xr_sub_image.cc",
+    "xr_sub_image.h",
+    "xr_webgl_resource_manager.h",
+    "xr_webgl_resource_manager.cc",
+    "xr_webgl_sub_image.cc",
+    "xr_webgl_sub_image.h",
   ]
 
   deps = [

@@ -1,3 +1,4 @@
+// Copyright (c) Facebook, Inc. and its affiliates.
 // Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
@@ -7,7 +8,9 @@
 
 #include "base/optional.h"
 #include "device/vr/public/mojom/vr_service.mojom-blink.h"
+#include "third_party/blink/renderer/core/frame/platform_event_controller.h"  //!AB
 #include "third_party/blink/renderer/modules/gamepad/gamepad.h"
+#include "third_party/blink/renderer/modules/gamepad/gamepad_haptic_actuator.h"  //!AB
 #include "third_party/blink/renderer/modules/xr/xr_native_origin_information.h"
 #include "third_party/blink/renderer/platform/bindings/script_wrappable.h"
 #include "third_party/blink/renderer/platform/heap/handle.h"
@@ -26,10 +29,12 @@ class XRGripSpace;
 class XRHand;
 class XRInputSourceEvent;
 class XRSession;
+class XRHand;
 class XRSpace;
 class XRTargetRaySpace;
 
-class XRInputSource : public ScriptWrappable, public Gamepad::Client {
+class XRInputSource : public ScriptWrappable,
+                      public Gamepad::Client {
   DEFINE_WRAPPERTYPEINFO();
 
  public:
@@ -45,8 +50,12 @@ class XRInputSource : public ScriptWrappable, public Gamepad::Client {
   XRInputSource(const XRInputSource& other);
   ~XRInputSource() override = default;
 
-  int16_t activeFrameId() const { return state_.active_frame_id; }
-  void setActiveFrameId(int16_t id) { state_.active_frame_id = id; }
+  int16_t activeFrameId() const {
+    return state_.active_frame_id;
+  }  //! AB int16 -> int32
+  void setActiveFrameId(int16_t id) {
+    state_.active_frame_id = id;
+  }  //! AB int16 -> int32
 
   XRSession* session() const { return session_; }
 
@@ -109,6 +118,19 @@ class XRInputSource : public ScriptWrappable, public Gamepad::Client {
   void Trace(Visitor*) const override;
 
  private:
+  class XRInputSourcePlatformEventController : public GarbageCollected<XRInputSourcePlatformEventController>,
+                                               public PlatformEventController {
+    public:
+      XRInputSourcePlatformEventController(blink::LocalDOMWindow &window)
+          : PlatformEventController(window) {}
+      ~XRInputSourcePlatformEventController() override = default;
+    private:
+      void RegisterWithDispatcher() override {}
+      void UnregisterWithDispatcher() override {}
+      bool HasLastData() override { return false; }
+      void DidUpdateData() override {}
+  };
+
   // In order to ease copying, any new member variables that can be trivially
   // copied (except for Member<T> variables), should go here
   struct InternalState {
@@ -153,6 +175,10 @@ class XRInputSource : public ScriptWrappable, public Gamepad::Client {
   // Note that UpdateGamepad should only be called after a check/recreation
   // from InvalidatesSameObject
   void UpdateGamepad(const base::Optional<device::Gamepad>& gamepad);
+
+  void UpdateHand(
+      const base::Optional<Vector<device::mojom::blink::XRJointSpacePtr>>&
+          hand_joints);
 
   XRInputSourceEvent* CreateInputSourceEvent(const AtomicString& type);
 

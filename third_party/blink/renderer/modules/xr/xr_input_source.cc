@@ -16,6 +16,7 @@
 #include "third_party/blink/renderer/modules/xr/xr_grip_space.h"
 #include "third_party/blink/renderer/modules/xr/xr_hand.h"
 #include "third_party/blink/renderer/modules/xr/xr_input_source_event.h"
+#include "third_party/blink/renderer/modules/xr/xr_joint_space.h"
 #include "third_party/blink/renderer/modules/xr/xr_session.h"
 #include "third_party/blink/renderer/modules/xr/xr_session_event.h"
 #include "third_party/blink/renderer/modules/xr/xr_space.h"
@@ -108,6 +109,8 @@ XRInputSource* XRInputSource::CreateOrUpdateFrom(
 
   updated_source->state_.emulated_position = state->emulated_position;
 
+  updated_source->UpdateHand(state->hand_joints);
+
   return updated_source;
 }
 
@@ -183,6 +186,10 @@ bool XRInputSource::InvalidatesSameObject(
     return true;
   }
 
+  if ((state->hand_joints && !hand_) || (!state->hand_joints && hand_)) {
+    return true;
+  }
+
   if (state->description) {
     if (state->description->handedness != state_.handedness) {
       return true;
@@ -244,6 +251,20 @@ base::Optional<TransformationMatrix> XRInputSource::InputFromPointer() const {
     return base::nullopt;
   }
   return *(input_from_pointer_.get());
+}
+
+void XRInputSource::UpdateHand(
+    const base::Optional<Vector<device::mojom::blink::XRJointSpacePtr>>&
+        hand_joints) {
+  if (hand_joints) {
+    if (!hand_) {
+      hand_ = MakeGarbageCollected<XRHand>(session_);
+    }
+
+    hand_->updateFromJointsState(this, *hand_joints);
+  } else {
+    hand_ = nullptr;
+  }
 }
 
 base::Optional<device::mojom::blink::XRNativeOriginInformation>
@@ -607,7 +628,9 @@ void XRInputSource::OnRemoved() {
 
 XRInputSourceEvent* XRInputSource::CreateInputSourceEvent(
     const AtomicString& type) {
-  XRFrame* presentation_frame = session_->CreatePresentationFrame();
+  XRFrame* presentation_frame = session_->animationFrame();
+  // Ensure the frame can be used inside the handler.
+  presentation_frame->Activate();
   return XRInputSourceEvent::Create(type, presentation_frame, this);
 }
 

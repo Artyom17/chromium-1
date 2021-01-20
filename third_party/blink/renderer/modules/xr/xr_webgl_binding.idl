@@ -3,6 +3,11 @@
 // found in the LICENSE file.
 
 // https://immersive-web.github.io/layers/#XRWebGLBindingtype
+enum XRTextureType {
+  "texture",
+  "texture-array"
+};
+
 [
     SecureContext,
     Exposed=Window
@@ -14,4 +19,18 @@
   WebGLTexture? getReflectionCubeMap(XRLightProbe lightProbe);
 
   [RuntimeEnabled=WebXRCameraAccess] WebGLTexture? getCameraImage(XRFrame frame, XRView view);
+
+  // WebXR Layers API
+  [RuntimeEnabled=WebXRLayers] readonly attribute double nativeProjectionScaleFactor;
+  [CallWith=ScriptState, RaisesException, RuntimeEnabled=WebXRLayers] XRProjectionLayer createProjectionLayer(XRProjectionLayerInit init);
+  [CallWith=ScriptState, RaisesException, RuntimeEnabled=WebXRLayers] XRQuadLayer createQuadLayer(XRQuadLayerInit init);
+  [CallWith=ScriptState, RaisesException, RuntimeEnabled=WebXRLayers] XRCylinderLayer createCylinderLayer(XRCylinderLayerInit init);
+  [CallWith=ScriptState, RaisesException, RuntimeEnabled=WebXRLayers] XREquirectLayer createEquirectLayer(XREquirectLayerInit init);
+  [CallWith=ScriptState, RaisesException, RuntimeEnabled=WebXRLayers] XRCubeLayer createCubeLayer(XRCubeLayerInit init);
+
+  [RaisesException, RuntimeEnabled=WebXRLayers] XRWebGLSubImage getSubImage(XRCompositionLayer layer, XRFrame frame, optional XREye eye ="none");
+  [RaisesException, RuntimeEnabled=WebXRLayers] XRWebGLSubImage getViewSubImage(XRCompositionLayer layer, XRView view);
+
+  readonly attribute FrozenArray<GLenum> supportedColorFormats;
+  readonly attribute FrozenArray<GLenum> supportedDepthStencilFormats;
 };

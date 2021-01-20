@@ -1,0 +1,8 @@
+// (c) Facebook, Inc. and its affiliates. Confidential and proprietary.
+
+dictionary XRQuadLayerInit : XRLayerInit {
+  XRTextureType textureType = "texture";
+  XRRigidTransform? transform;
+  float width = 1.0;
+  float height = 1.0;
+};

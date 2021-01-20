@@ -1,0 +1,6 @@
+// (c) Facebook, Inc. and its affiliates. Confidential and proprietary.
+
+// https://immersive-web.github.io/webxr/#xrsessionevent-interface
+dictionary XRLayerEventInit : EventInit {
+  required XRLayer layer;
+};

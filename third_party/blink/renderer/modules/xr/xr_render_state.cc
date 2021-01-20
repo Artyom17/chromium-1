@@ -23,7 +23,8 @@ constexpr double kMaxFieldOfView = 3.13;
 constexpr double kDefaultFieldOfView = M_PI * 0.5;
 }  // anonymous namespace
 
-XRRenderState::XRRenderState(bool immersive) : immersive_(immersive) {
+XRRenderState::XRRenderState(bool immersive)
+    : immersive_(immersive) {
   if (!immersive_)
     inline_vertical_fov_ = kDefaultFieldOfView;
 }
@@ -37,6 +38,9 @@ void XRRenderState::Update(const XRRenderStateInit* init) {
   }
   if (init->hasBaseLayer()) {
     base_layer_ = init->baseLayer();
+  }
+  if (init->hasLayers()) {
+    layers_ = init->layers();
   }
   if (init->hasInlineVerticalFieldOfView()) {
     double fov = init->inlineVerticalFieldOfView();
@@ -61,8 +65,13 @@ base::Optional<double> XRRenderState::inlineVerticalFieldOfView() const {
   return inline_vertical_fov_;
 }
 
+const HeapVector<Member<XRLayer>>& XRRenderState::layers() const {
+  return layers_;
+}
+
 void XRRenderState::Trace(Visitor* visitor) const {
   visitor->Trace(base_layer_);
+  visitor->Trace(layers_);
   ScriptWrappable::Trace(visitor);
 }
 
